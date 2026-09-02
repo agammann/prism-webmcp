@@ -16,6 +16,16 @@ type Props = {
   report: EvaluationReport;
   onChooseProfile: (profile: ProfileKey) => void;
   onRun: (profile: ProfileKey, report: EvaluationReport) => void;
+  onActivity: (activity: WebMCPActivity) => void;
+};
+
+export type WebMCPActivity = {
+  id: string;
+  tool: string;
+  title: string;
+  mode: 'read' | 'write';
+  status: 'completed' | 'failed';
+  timestamp: string;
 };
 
 function objectInput(input: unknown): Record<string, unknown> {
@@ -31,14 +41,42 @@ function profileInput(input: unknown): ProfileKey {
   return value;
 }
 
-export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, onRun }: Props) {
+export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, onRun, onActivity }: Props) {
   useEffect(() => {
     const context = document.modelContext;
     if (typeof context?.registerTool !== 'function') return;
     const lifecycle = new AbortController();
     const register = (tool: WebMCPTool) => {
+      const instrumentedTool: WebMCPTool = {
+        ...tool,
+        execute: async (input) => {
+          const timestamp = new Date().toISOString();
+          try {
+            const result = await tool.execute(input);
+            onActivity({
+              id: `${timestamp}-${tool.name}`,
+              tool: tool.name,
+              title: tool.title ?? tool.name,
+              mode: tool.annotations?.readOnlyHint === true ? 'read' : 'write',
+              status: 'completed',
+              timestamp,
+            });
+            return result;
+          } catch (error) {
+            onActivity({
+              id: `${timestamp}-${tool.name}`,
+              tool: tool.name,
+              title: tool.title ?? tool.name,
+              mode: tool.annotations?.readOnlyHint === true ? 'read' : 'write',
+              status: 'failed',
+              timestamp,
+            });
+            throw error;
+          }
+        },
+      };
       try {
-        void Promise.resolve(context.registerTool(tool, { signal: lifecycle.signal })).catch(console.error);
+        void Promise.resolve(context.registerTool(instrumentedTool, { signal: lifecycle.signal })).catch(console.error);
       } catch (error) {
         console.error(error);
       }
@@ -48,7 +86,12 @@ export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, on
       name: 'get_evaluation_context',
       title: 'Get evaluation context',
       description: 'Read the currently selected WebMCP purpose profile, target label, expected capabilities, and human approval rule shown in Prism.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      inputSchema: {
+        type: 'object',
+        description: 'No input is required. Reads the evaluation contract currently visible in Prism.',
+        properties: {},
+        additionalProperties: false,
+      },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute: async (input) => {
         if (Object.keys(objectInput(input)).length) throw new Error('This tool takes no properties.');
@@ -68,7 +111,14 @@ export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, on
       description: 'Select which declared WebMCP job Prism should evaluate. This changes the visible profile, intent, capability map, and sample scorecard.',
       inputSchema: {
         type: 'object',
-        properties: { profile: { type: 'string', enum: ['commerce', 'operations', 'editor', 'custom'] } },
+        description: 'Choose the product journey Prism should use as its evaluation contract.',
+        properties: {
+          profile: {
+            type: 'string',
+            description: 'commerce for product discovery and checkout; operations for work tracking and review; editor for reviewable content changes; custom for a user-declared job and approval boundary.',
+            enum: ['commerce', 'operations', 'editor', 'custom'],
+          },
+        },
         required: ['profile'],
         additionalProperties: false,
       },
@@ -86,7 +136,14 @@ export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, on
       description: 'Run a deterministic example WebMCP evaluation for the selected purpose profile and update the visible report with its evidence-backed score.',
       inputSchema: {
         type: 'object',
-        properties: { profile: { type: 'string', enum: ['commerce', 'operations', 'editor', 'custom'] } },
+        description: 'Run Prism\'s deterministic example for exactly one declared product journey.',
+        properties: {
+          profile: {
+            type: 'string',
+            description: 'The evaluation profile to run. Use commerce, operations, or editor for built-in evidence; use custom for the currently declared custom contract.',
+            enum: ['commerce', 'operations', 'editor', 'custom'],
+          },
+        },
         required: ['profile'],
         additionalProperties: false,
       },
@@ -103,7 +160,12 @@ export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, on
       name: 'get_latest_evaluation',
       title: 'Get latest evaluation',
       description: 'Read the score, summary, journey coverage, and evidence findings currently visible in Prism.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      inputSchema: {
+        type: 'object',
+        description: 'No input is required. Reads only the latest report currently visible in Prism.',
+        properties: {},
+        additionalProperties: false,
+      },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: async (input) => {
         if (Object.keys(objectInput(input)).length) throw new Error('This tool takes no properties.');
@@ -118,8 +180,7 @@ export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, on
     });
 
     return () => lifecycle.abort();
-  }, [onChooseProfile, onRun, profile, report, targetUrl]);
+  }, [onActivity, onChooseProfile, onRun, profile, report, targetUrl]);
 
   return null;
 }
-

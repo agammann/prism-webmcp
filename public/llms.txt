@@ -1,0 +1,24 @@
+# Prism
+
+> Purpose-aware evaluation for browser-native WebMCP implementations.
+
+Prism evaluates whether a page's WebMCP tools cover the job they are intended to perform, use narrow contracts, produce visible and readable state changes, and preserve human approval for consequential actions.
+
+## Application
+
+- Live app: https://prism.alx21.chatgpt.site/
+- Source: https://github.com/agammann/prism-webmcp
+- Browser companion: https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip
+
+## Page-side WebMCP tools
+
+- `get_evaluation_context` (read): returns the visible profile, target, intended journey, expected capabilities, and approval boundary.
+- `choose_evaluation_profile` (write): selects `commerce`, `operations`, `editor`, or `custom` and updates the same visible evaluation state.
+- `run_sample_evaluation` (write): runs deterministic evidence for one profile and updates the visible report.
+- `get_latest_evaluation` (read): returns the score, journey coverage, and evidence findings currently visible in Prism.
+
+The tools are registered imperatively through `document.modelContext.registerTool()` in a compatible top-level browser context. Prism does not use a static MCP manifest as a substitute for the live page-owned registry.
+
+## Evaluation boundary
+
+The browser companion discovers and executes tools on the target origin. The hosted dashboard evaluates the exported privacy-preserving snapshot. Mutating companion checks require fresh confirmation, and exported snapshots omit page text and tool output.

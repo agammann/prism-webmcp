@@ -21,6 +21,8 @@ Prism starts with a declared contract:
 
 It then produces an interpretable score across purpose coverage, contract quality, observable proof, and runtime hygiene. Every deduction includes the underlying evidence and a repair that can be retested.
 
+Prism also keeps a privacy-preserving on-page activity trace for its own WebMCP calls. It records the tool name, read/write mode, outcome, and time without retaining tool inputs or outputs.
+
 ## Human and agent workflow
 
 1. A person chooses Commerce, Project Operations, Content Editor, or defines a Custom contract.
@@ -50,6 +52,8 @@ See [`extension/README.md`](extension/README.md) and [`extension/PRIVACY.md`](ex
 - `components/webmcp-provider.tsx`: Prism's own page-side WebMCP tools.
 - `extension/`: the open-source browser companion.
 - `extension/test/`: deterministic snapshot and safety tests.
+- `evals/webmcp-routing.json`: natural-language intent-to-tool fixtures for Prism's own tool surface.
+- `worker.ts`: the production response wrapper that applies security headers without changing the WebMCP runtime.
 
 ## Run locally
 
@@ -68,6 +72,8 @@ pnpm lint
 pnpm build
 ```
 
+The test command verifies companion behavior, Prism's routing fixtures, and its production security-header contract.
+
 ## Judge quick test
 
 1. Open [the deployed app](https://prism.alx21.chatgpt.site/) in ChatGPT's in-app browser.
@@ -81,4 +87,3 @@ pnpm build
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
-

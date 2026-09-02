@@ -37,6 +37,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'SoftwareApplication',
+              name: 'Prism',
+              applicationCategory: 'DeveloperApplication',
+              operatingSystem: 'Any modern browser',
+              url: 'https://prism.alx21.chatgpt.site/',
+              codeRepository: 'https://github.com/agammann/prism-webmcp',
+              license: 'https://opensource.org/license/mit',
+              description: 'Purpose-aware evaluation for browser-native WebMCP tool contracts, visible mutations, and human approval boundaries.',
+            }).replaceAll('<', '\\u003c'),
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -45,4 +63,3 @@ export default function RootLayout({
     </html>
   );
 }
-

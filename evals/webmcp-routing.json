@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "description": "Intent-to-tool fixtures for Prism's own browser-native WebMCP surface.",
+  "cases": [
+    {
+      "id": "read-current-contract",
+      "prompt": "What kind of WebMCP is Prism currently evaluating, and what must remain human-approved?",
+      "expectedTool": "get_evaluation_context",
+      "expectedArguments": {},
+      "expectedMode": "read",
+      "expectedVisibleStateChange": false
+    },
+    {
+      "id": "choose-operations-contract",
+      "prompt": "Evaluate this as a project operations WebMCP.",
+      "expectedTool": "choose_evaluation_profile",
+      "expectedArguments": { "profile": "operations" },
+      "expectedMode": "write",
+      "expectedVisibleStateChange": true
+    },
+    {
+      "id": "run-commerce-example",
+      "prompt": "Run the deterministic commerce evaluation and show me the result.",
+      "expectedTool": "run_sample_evaluation",
+      "expectedArguments": { "profile": "commerce" },
+      "expectedMode": "write",
+      "expectedVisibleStateChange": true
+    },
+    {
+      "id": "read-latest-report",
+      "prompt": "Summarize the latest score and its evidence without changing anything.",
+      "expectedTool": "get_latest_evaluation",
+      "expectedArguments": {},
+      "expectedMode": "read",
+      "expectedVisibleStateChange": false
+    },
+    {
+      "id": "reject-unsupported-profile",
+      "prompt": "Switch Prism to a banking profile.",
+      "expectedTool": "choose_evaluation_profile",
+      "expectedArguments": { "profile": "banking" },
+      "expectedMode": "write",
+      "expectedError": "profile must be commerce, operations, editor, or custom."
+    }
+  ]
+}

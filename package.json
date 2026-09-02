@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "node scripts/sandbox-vinext.mjs dev",
     "build": "node scripts/sandbox-vinext.mjs build",
-    "test": "node --test --test-isolation=none extension/test/*.test.js",
+    "test": "node --test --test-isolation=none extension/test/*.test.js && node scripts/verify-webmcp-evals.mjs && node scripts/verify-security-headers.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
     "format": "oxfmt"
@@ -54,4 +54,3 @@
   },
   "type": "module"
 }
-

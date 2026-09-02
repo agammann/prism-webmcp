@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   CircleAlert,
+  Clock3,
   CircleDot,
   ClipboardPaste,
   Code2,
@@ -22,7 +23,7 @@ import {
   TerminalSquare,
 } from 'lucide-react';
 
-import { WebMCPProvider } from '@/components/webmcp-provider';
+import { WebMCPProvider, type WebMCPActivity } from '@/components/webmcp-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -78,6 +79,7 @@ export default function Home() {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [scanned, setScanned] = useState(false);
   const [report, setReport] = useState<EvaluationReport>(() => evaluateSnapshot(profiles.commerce, getSampleSnapshot('commerce')));
+  const [agentActivity, setAgentActivity] = useState<WebMCPActivity[]>([]);
 
   const evaluationProfile: EvaluationProfile = useMemo(
     () => profile === 'custom' ? makeCustomProfile(customIntent, customTools, customApproval) : profiles[profile],
@@ -148,6 +150,10 @@ export default function Home() {
     setError(null);
   }, []);
 
+  const handleWebMCPActivity = useCallback((activity: WebMCPActivity) => {
+    setAgentActivity((current) => [activity, ...current].slice(0, 5));
+  }, []);
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <WebMCPProvider
@@ -156,6 +162,7 @@ export default function Home() {
         report={report}
         onChooseProfile={chooseProfile}
         onRun={handleWebMCPRun}
+        onActivity={handleWebMCPActivity}
       />
 
       <header className="sticky top-0 z-40 border-b border-white/8 bg-[#09110f]/92 backdrop-blur-xl">
@@ -361,6 +368,40 @@ export default function Home() {
           ))}
         </div>
 
+        <section className="mt-4 rounded-2xl border bg-card p-5" aria-labelledby="agent-activity-heading">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <MonitorDot className="size-4 text-emerald-600" />
+                <h3 id="agent-activity-heading" className="text-sm font-semibold">Agent activity</h3>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">A privacy-preserving trace of WebMCP calls made on this page. Inputs and outputs are never logged here.</p>
+            </div>
+            <Badge variant="outline">Last {agentActivity.length} of 5</Badge>
+          </div>
+          <div className="mt-4" aria-live="polite">
+            {agentActivity.length === 0 ? (
+              <div className="rounded-xl border border-dashed bg-background/50 px-4 py-5 text-sm text-muted-foreground">
+                No agent calls yet. Invoke one of Prism&apos;s four WebMCP tools to see an auditable read/write trace.
+              </div>
+            ) : (
+              <ol className="divide-y rounded-xl border bg-background/50 px-4">
+                {agentActivity.map((activity) => (
+                  <li key={activity.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+                    <span className={`size-2 rounded-full ${activity.status === 'completed' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <code className="font-mono text-xs font-medium">{activity.tool}</code>
+                    <Badge variant="outline" className="text-[10px]">{activity.mode}</Badge>
+                    <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Clock3 className="size-3" /> {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                    <span className="basis-full pl-5 text-xs text-muted-foreground">{activity.title} {activity.status}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </section>
+
         <div id="method" className="mt-10 scroll-mt-24 overflow-hidden rounded-2xl border bg-[#101916] text-white">
           <div className="grid lg:grid-cols-[.9fr_1.1fr]">
             <div className="border-b border-white/8 p-6 lg:border-b-0 lg:border-r lg:p-8">
@@ -416,4 +457,3 @@ export default function Home() {
     </main>
   );
 }
-
