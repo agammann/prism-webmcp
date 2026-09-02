@@ -1,0 +1,18 @@
+type WebMCPTool = {
+  name: string;
+  title?: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations?: {
+    readOnlyHint?: boolean;
+    untrustedContentHint?: boolean;
+  };
+  execute(input: unknown): unknown | Promise<unknown>;
+};
+
+interface Document {
+  modelContext?: {
+    registerTool(tool: WebMCPTool, options?: { signal?: AbortSignal }): void | Promise<void>;
+  };
+}
+
