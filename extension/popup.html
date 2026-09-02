@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prism WebMCP Companion</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header class="topbar">
+        <div class="mark" aria-hidden="true">⌕</div>
+        <div class="brand">
+          <strong>Prism</strong>
+          <span>browser companion</span>
+        </div>
+        <button id="refresh" class="icon-button" type="button" title="Refresh live tools" aria-label="Refresh live tools">↻</button>
+      </header>
+
+      <section class="page-status" aria-live="polite">
+        <span id="status-dot" class="dot pending"></span>
+        <div class="page-copy">
+          <strong id="page-title">Inspecting this tab…</strong>
+          <span id="page-url"></span>
+        </div>
+        <span id="tool-count" class="count">—</span>
+      </section>
+
+      <section class="section contract">
+        <div class="section-heading">
+          <div><span class="eyebrow">Evaluation contract</span><h1>What is this WebMCP for?</h1></div>
+          <span class="step">1</span>
+        </div>
+        <label for="profile">Profile</label>
+        <select id="profile">
+          <option value="commerce">Commerce & checkout</option>
+          <option value="operations">Project operations</option>
+          <option value="editor">Content editor</option>
+          <option value="custom">Custom contract</option>
+        </select>
+        <div id="custom-contract" class="contract-fields" hidden>
+          <label for="intent">Job to be done</label>
+          <textarea id="intent" rows="2"></textarea>
+          <label for="expected-tools">Expected tool names <span>comma separated</span></label>
+          <input id="expected-tools" type="text" />
+          <label for="approval-rule">Human-only boundary</label>
+          <textarea id="approval-rule" rows="2"></textarea>
+        </div>
+        <p id="contract-summary" class="hint"></p>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <div><span class="eyebrow">Live contract</span><h2>Discovered tools</h2></div>
+          <span class="step">2</span>
+        </div>
+        <div id="tool-list" class="tool-list">
+          <div class="empty">Waiting for WebMCP…</div>
+        </div>
+      </section>
+
+      <section id="runner" class="section" hidden>
+        <div class="section-heading">
+          <div><span class="eyebrow">Deterministic check</span><h2>Run one live tool</h2></div>
+          <span class="step">3</span>
+        </div>
+        <label for="run-tool">Tool</label>
+        <select id="run-tool"></select>
+        <div id="tool-meta" class="tool-meta"></div>
+        <label for="tool-input">Input JSON</label>
+        <textarea id="tool-input" class="code" rows="5" spellcheck="false">{}</textarea>
+
+        <div id="readback-fields" class="readback" hidden>
+          <label for="readback-tool">Read-back tool <span>optional but required for mutation proof</span></label>
+          <select id="readback-tool"></select>
+          <label for="readback-input">Read-back input JSON</label>
+          <textarea id="readback-input" class="code" rows="3" spellcheck="false">{}</textarea>
+          <label for="expected-text">Expected text in read-back result</label>
+          <input id="expected-text" type="text" placeholder="revision, status, item name…" />
+        </div>
+
+        <button id="run" class="primary" type="button">Run read-only check</button>
+        <div id="mutation-confirm" class="confirm" hidden>
+          <strong>This tool may change page state.</strong>
+          <p>Review the input above. This confirmation authorizes one call only; it does not approve later calls or final actions.</p>
+          <div class="confirm-actions">
+            <button id="cancel-mutation" class="secondary" type="button">Cancel</button>
+            <button id="confirm-mutation" class="danger" type="button">Run mutation once</button>
+          </div>
+        </div>
+        <div id="run-result" class="result" aria-live="polite" hidden></div>
+      </section>
+
+      <section class="section export">
+        <div class="section-heading compact">
+          <div><span class="eyebrow">Portable evidence</span><h2>Evaluate in Prism</h2></div>
+          <span class="step">4</span>
+        </div>
+        <p class="hint">The export includes descriptors, test outcomes, and hashes—not page text or tool output.</p>
+        <div class="button-row">
+          <button id="open-prism" class="primary" type="button">Open in Prism ↗</button>
+          <button id="download" class="secondary" type="button">Download JSON</button>
+        </div>
+      </section>
+
+      <footer>
+        <span>Local-first · no telemetry</span>
+        <a href="https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip" target="_blank" rel="noreferrer">MIT source</a>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
+
