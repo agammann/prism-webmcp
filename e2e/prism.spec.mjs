@@ -80,11 +80,14 @@ test('registration failure keeps manual evaluation working', async ({ page }) =>
 test('desktop and mobile have no horizontal overflow and retain usable report controls', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const geometry = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, overflow: [...document.querySelectorAll('main *')].filter(node => node.getBoundingClientRect().right > innerWidth).slice(0,8).map(node => ({ tag: node.tagName, id: node.id, text: node.textContent.slice(0,60), right: node.getBoundingClientRect().right })) }));
+  expect(geometry.width, JSON.stringify(geometry)).toBeLessThanOrEqual(geometry.viewport);
   await expect(page.getByText('Checking browser support…', { exact: true })).toHaveCount(0);
   await page.screenshot({ path: 'test-results/prism-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await importFile(page); await expect(page.getByRole('button', { name: 'Download report JSON' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const mobile = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, overflow: [...document.querySelectorAll('main *')].filter(node => node.getBoundingClientRect().right > innerWidth).slice(0,8).map(node => ({ tag: node.tagName, id: node.id, text: node.textContent.slice(0,60), right: node.getBoundingClientRect().right })) }));
+  expect(mobile.width, JSON.stringify(mobile)).toBeLessThanOrEqual(mobile.viewport);
+  await page.evaluate(() => window.scrollTo(0,0));
   await page.screenshot({ path: 'test-results/prism-mobile.png', fullPage: true });
 });

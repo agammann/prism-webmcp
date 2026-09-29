@@ -188,7 +188,7 @@ export default function Home() {
       </header>
 
       <section id="top" className="scroll-mt-20 border-b border-white/8 bg-[#09110f]">
-        <div className="mx-auto grid max-w-[1500px] gap-8 px-5 py-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(470px,.95fr)] lg:px-8 lg:py-14">
+        <div className="mx-auto grid grid-cols-1 max-w-[1500px] gap-8 px-5 py-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(470px,.95fr)] lg:px-8 lg:py-14">
           <div className="max-w-3xl self-center">
             <div className="mb-5 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-emerald-200/70">
               <CircleDot className="size-3.5" /> Evaluate the contract, not just the URL
@@ -207,7 +207,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div id="profiles" className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20 sm:p-6">
+          <div id="profiles" className="min-w-0 scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20 sm:p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-white">Evaluation setup</p>
@@ -289,7 +289,7 @@ export default function Home() {
                     className="max-h-48 min-h-36 resize-y border-white/10 bg-[#050a08] font-mono text-[10px] leading-4 text-emerald-50/75 focus-visible:border-emerald-300/40 focus-visible:ring-emerald-300/10"
                   />
                   <label className="mt-3 block text-xs text-white/70">Import snapshot file
-                    <input type="file" accept=".json,application/json" className="mt-2 block max-w-full" onChange={async event => {
+                    <input type="file" accept=".json,application/json" className="mt-2 block w-full min-w-0 max-w-full text-[11px]" onChange={async event => {
                       const file = event.target.files?.[0];
                       if (!file) return;
                       try { if (file.size > 1_000_000) throw new Error('Snapshot exceeds the 1 MB limit.'); importSnapshot(await file.text()); }
@@ -346,7 +346,7 @@ export default function Home() {
             <a href="#dimensions" className="mt-6 flex w-full items-center justify-between border-t pt-4 text-sm font-medium">See scoring evidence <ChevronRight className="size-4" /></a>
           </article>
 
-          <article className="rounded-2xl border bg-card p-5">
+          <article className="min-w-0 rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between gap-3">
               <div><p className="text-sm font-semibold">Journey coverage</p><p className="mt-1 text-xs text-muted-foreground">Expected job → discovered tool → observable outcome</p></div>
               <Braces className="size-5 text-muted-foreground" />
@@ -362,7 +362,7 @@ export default function Home() {
             </div>
           </article>
 
-          <article className="rounded-2xl border bg-card p-5">
+          <article className="min-w-0 rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between">
               <div><p className="text-sm font-semibold">Evidence findings</p><p className="mt-1 text-xs text-muted-foreground">Checks are tied to the declared contract.</p></div>
               <ShieldCheck className="size-5 text-emerald-600" />
