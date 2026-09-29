@@ -7,7 +7,7 @@ type WebMCPTool = {
     readOnlyHint?: boolean;
     untrustedContentHint?: boolean;
   };
-  execute(input: unknown): unknown | Promise<unknown>;
+  execute(input: unknown): unknown;
 };
 
 interface Document {
@@ -15,4 +15,3 @@ interface Document {
     registerTool(tool: WebMCPTool, options?: { signal?: AbortSignal }): void | Promise<void>;
   };
 }
-

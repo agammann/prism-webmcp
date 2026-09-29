@@ -4,6 +4,7 @@ const PRISM_URL = 'https://prism.alx21.chatgpt.site/';
 
 const state = {
   tab: null,
+  documentKey: null,
   page: { supported: false, url: '', title: '' },
   tools: [],
   executions: [],
@@ -94,7 +95,7 @@ function renderTools() {
     badges.className = 'badges';
     const access = document.createElement('span');
     access.className = `badge ${tool.annotations.readOnlyHint ? 'read' : 'write'}`;
-    access.textContent = tool.annotations.readOnlyHint ? 'read' : 'write';
+    access.textContent = tool.annotations.readOnlyHint === true ? 'read' : tool.annotations.readOnlyHint === false ? 'write' : 'unknown';
     badges.append(access);
     if (tool.annotations.untrustedContentHint) {
       const untrusted = document.createElement('span');
@@ -120,7 +121,7 @@ function updateRunner() {
   if (!tool) return;
   const readOnly = tool.annotations.readOnlyHint;
   nodes.toolMeta.textContent = `${readOnly ? 'Read-only' : 'Mutating'} · ${tool.origin || state.page.url} · ${Object.keys(tool.inputSchema?.properties || {}).length} input field(s)`;
-  nodes.readbackFields.hidden = readOnly;
+  nodes.readbackFields.hidden = false;
   nodes.run.textContent = readOnly ? 'Run read-only check' : 'Review mutation';
   nodes.mutationConfirm.hidden = true;
   state.pendingMutation = null;
@@ -134,14 +135,14 @@ async function inspectPage() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id || !/^https?:/u.test(tab.url || '')) throw new Error('Open an http(s) page, then click the extension again.');
-    state.tab = tab;
+
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id, frameIds: [0] },
       world: 'MAIN',
       func: async () => {
         const context = document.modelContext;
         if (!context || typeof context.getTools !== 'function') {
-          return { supported: false, url: location.href, title: document.title, tools: [] };
+          return { supported: false, url: location.href, title: document.title, documentKey: `${location.href}:${performance.timeOrigin}`, tools: [] };
         }
         const registered = await context.getTools();
         const tools = registered.map((tool) => {
@@ -161,9 +162,13 @@ async function inspectPage() {
             origin: tool.origin,
           };
         });
-        return { supported: true, url: location.href, title: document.title, tools };
+        return { supported: true, url: location.href, title: document.title, documentKey: `${location.href}:${performance.timeOrigin}`, tools };
       },
     });
+    const key = `${tab.id}:${result.documentKey}`;
+    if (state.documentKey !== key) { state.executions = []; state.pendingMutation = null; }
+    state.documentKey = key;
+    state.tab = tab;
     state.page = { supported: result.supported, url: result.url, title: result.title };
     state.tools = (result.tools || []).map(normalizeTool);
     nodes.pageTitle.textContent = result.supported ? (result.title || 'Untitled WebMCP page') : 'WebMCP is unavailable on this page';
@@ -173,6 +178,7 @@ async function inspectPage() {
   } catch (error) {
     state.page = { supported: false, url: state.tab?.url || '', title: '' };
     state.tools = [];
+    state.executions = []; state.pendingMutation = null; state.documentKey = null;
     nodes.pageTitle.textContent = error instanceof Error ? error.message : 'Could not inspect this tab.';
     nodes.statusDot.className = 'dot error';
     renderTools();
@@ -206,15 +212,16 @@ async function executeSelected(readOnly) {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: state.tab.id, frameIds: [0] },
       world: 'MAIN',
-      args: [tool.name, input, readOnly ? '' : nodes.readbackTool.value, readbackInput, nodes.expectedText.value],
-      func: async (toolName, toolInput, readbackName, verificationInput, expectedText) => {
+      args: [tool.name, input, readOnly ? '' : nodes.readbackTool.value, readbackInput, nodes.expectedText.value, readOnly, state.page.url, state.documentKey.split(':').at(-1)],
+      func: async (toolName, toolInput, readbackName, verificationInput, expectedText, requireReadOnly, expectedUrl, expectedTimeOrigin) => {
+        if (location.href !== expectedUrl || String(performance.timeOrigin) !== expectedTimeOrigin) throw new Error('The page changed. Refresh the tool list and review the call again.');
         const context = document.modelContext;
         if (!context || typeof context.getTools !== 'function' || typeof context.executeTool !== 'function') {
           throw new Error('This browser does not expose the WebMCP discovery and execution APIs on the page.');
         }
 
         const stableVisibleState = () => {
-          const controls = [...document.querySelectorAll('input, textarea, select')].map((node) => {
+          const controls = [...document.querySelectorAll('input:not([type=password]):not([type=hidden]), textarea, select')].map((node) => {
             if (node instanceof HTMLSelectElement) return `${node.name}:${node.selectedIndex}:${node.value}`;
             if (node instanceof HTMLInputElement && (node.type === 'checkbox' || node.type === 'radio')) return `${node.name}:${node.checked}`;
             return `${node.name}:${node.value}`;
@@ -240,8 +247,15 @@ async function executeSelected(readOnly) {
         const tools = await context.getTools();
         const selected = tools.find((candidate) => candidate.name === toolName);
         if (!selected) throw new Error(`Tool ${toolName} is no longer exposed in this page state.`);
+        if (requireReadOnly && selected.annotations?.readOnlyHint !== true) throw new Error('The tool is no longer marked read-only. Refresh and review the mutation.');
+        const checkResult = result => {
+          let parsed = result;
+          if (typeof result === 'string') { try { parsed = JSON.parse(result); } catch { /* Plain-text tool output. */ } }
+          if (parsed?.isError === true) throw new Error('The tool returned an error result.');
+          return result;
+        };
         const beforeHash = await digest(stableVisibleState());
-        const output = await context.executeTool(selected, toolInput);
+        const output = checkResult(await context.executeTool(selected, toolInput));
         await waitForPaint();
         const afterHash = await digest(stableVisibleState());
         let readback = null;
@@ -249,7 +263,8 @@ async function executeSelected(readOnly) {
           const currentTools = await context.getTools();
           const readTool = currentTools.find((candidate) => candidate.name === readbackName);
           if (!readTool) throw new Error(`Read-back tool ${readbackName} is no longer exposed.`);
-          const readOutput = await context.executeTool(readTool, verificationInput);
+          if (readTool.annotations?.readOnlyHint !== true) throw new Error('Read-back tool must still be explicitly read-only.');
+          const readOutput = checkResult(await context.executeTool(readTool, verificationInput));
           const readText = typeof readOutput === 'string' ? readOutput : JSON.stringify(readOutput);
           readback = {
             tool: readbackName,
@@ -264,6 +279,7 @@ async function executeSelected(readOnly) {
           afterHash,
           visibleStateChanged: beforeHash !== afterHash,
           readback,
+          readVerified: requireReadOnly && Boolean(expectedText.trim()) && (typeof output === 'string' ? output : JSON.stringify(output)).toLocaleLowerCase().includes(expectedText.trim().toLocaleLowerCase()),
         };
       },
     });
@@ -282,14 +298,14 @@ async function executeSelected(readOnly) {
       beforeStateHash: result.beforeHash,
       afterStateHash: result.afterHash,
       readBackTool: result.readback?.tool || null,
-      readBackVerified: result.readback?.verified === true,
+      readBackVerified: readOnly ? result.readVerified === true : result.readback?.verified === true,
       readBackExpectedText: result.readback?.expectedText || null,
     };
     state.executions.push(execution);
     const evidence = readOnly
-      ? 'Read completed.'
+      ? `Read completed. Expected text ${result.readVerified ? 'matched' : 'was not verified'}.`
       : `Visible state ${result.visibleStateChanged ? 'changed' : 'did not change'}. Read-back ${result.readback?.verified ? 'matched' : 'was not verified'}.`;
-    showResult(`${tool.name} passed in ${execution.durationMs} ms. ${evidence}\n\nOutput preview:\n${output.slice(0, 900) || '(empty result)'}`);
+    showResult(`${tool.name} completed in ${execution.durationMs} ms. ${evidence}\n\nOutput preview:\n${output.slice(0, 900) || '(empty result)'}`);
     await inspectPage();
   } catch (error) {
     state.executions.push({
@@ -323,7 +339,7 @@ function prepareRun() {
     showResult(error.message, 'error');
     return;
   }
-  state.pendingMutation = tool.name;
+  state.pendingMutation = JSON.stringify([tool.name, nodes.toolInput.value, nodes.readbackTool.value, nodes.readbackInput.value, nodes.expectedText.value]);
   nodes.mutationConfirm.hidden = false;
   showResult(`Ready to call ${tool.name}. A separate confirmation is required because it is not marked read-only.`, 'running');
 }
@@ -358,6 +374,8 @@ function downloadSnapshot() {
   }
 }
 
+for (const node of [nodes.toolInput, nodes.readbackTool, nodes.readbackInput, nodes.expectedText]) node.addEventListener('input', () => { state.pendingMutation = null; nodes.mutationConfirm.hidden = true; });
+
 nodes.profile.addEventListener('change', updateContract);
 nodes.refresh.addEventListener('click', inspectPage);
 nodes.runTool.addEventListener('change', updateRunner);
@@ -368,11 +386,11 @@ nodes.cancelMutation.addEventListener('click', () => {
   showResult('Mutation cancelled. No tool was called.', 'running');
 });
 nodes.confirmMutation.addEventListener('click', () => {
-  if (state.pendingMutation === selectedTool()?.name) void executeSelected(false);
+  if (state.pendingMutation === JSON.stringify([selectedTool()?.name, nodes.toolInput.value, nodes.readbackTool.value, nodes.readbackInput.value, nodes.expectedText.value])) void executeSelected(false);
+  else { state.pendingMutation = null; nodes.mutationConfirm.hidden = true; showResult('Inputs changed. Review the mutation again.', 'error'); }
 });
 nodes.openPrism.addEventListener('click', openInPrism);
 nodes.download.addEventListener('click', downloadSnapshot);
 
 updateContract();
 void inspectPage();
-

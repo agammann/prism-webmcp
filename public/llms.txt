@@ -1,24 +1,25 @@
 # Prism
 
-> Purpose-aware evaluation for browser-native WebMCP implementations.
+> Inspect the evidence behind a WebMCP contract.
 
-Prism evaluates whether a page's WebMCP tools cover the job they are intended to perform, use narrow contracts, produce visible and readable state changes, and preserve human approval for consequential actions.
+Prism compares expected names with supplied tool snapshots. It checks schema shape, annotations, reported outcomes, runtime observations, and reported approval preservation. It does not independently verify semantic task completion or certify safety. Examples are synthetic and remain labeled as examples.
 
-## Application
+- App: https://prism.alx21.chatgpt.site/
+- Source and full guide: https://github.com/agammann/prism-webmcp
+- Optional companion: https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip
 
-- Live app: https://prism.alx21.chatgpt.site/
-- Source: https://github.com/agammann/prism-webmcp
-- Browser companion: https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip
+## Page-owned WebMCP tools
 
-## Page-side WebMCP tools
+- get_evaluation_context (read, {}): reads current draft including actual custom fields and source selection.
+- choose_evaluation_profile (write, {profile}): changes draft contract; preserves JSON and marks previous report stale.
+- run_sample_evaluation (write, {profile}): evaluates a synthetic example. Custom uses the current custom fields.
+- evaluate_current_snapshot (write, {}): evaluates the entered JSON against the current contract. Requires Runner snapshot mode.
+- get_latest_evaluation (read, {}): reads the report with its exact contract, target, source, findings, and stale flag.
 
-- `get_evaluation_context` (read): returns the visible profile, target, intended journey, expected capabilities, and approval boundary.
-- `choose_evaluation_profile` (write): selects `commerce`, `operations`, `editor`, or `custom` and updates the same visible evaluation state.
-- `run_sample_evaluation` (write): runs deterministic evidence for one profile and updates the visible report.
-- `get_latest_evaluation` (read): returns the score, journey coverage, and evidence findings currently visible in Prism.
+Profiles: commerce, operations, editor, custom. Inputs are strict; extra properties are rejected. Tools use document.modelContext.registerTool with lifecycle cleanup. Registration status appears in the Agent activity panel. Manual controls work without native WebMCP.
 
-The tools are registered imperatively through `document.modelContext.registerTool()` in a compatible top-level browser context. Prism does not use a static MCP manifest as a substitute for the live page-owned registry.
+## Data and evidence
 
-## Evaluation boundary
+JSON analysis happens in the browser; Prism does not visit target labels. Imports and reports live in tab memory. Save reports using Download report JSON, and keep the original snapshot separately. Changing the setup does not silently alter the previous report.
 
-The browser companion discovers and executes tools on the target origin. The hosted dashboard evaluates the exported privacy-preserving snapshot. Mutating companion checks require fresh confirmation, and exported snapshots omit page text and tool output.
+The optional companion uses activeTab and scripting. Unknown or mutating tools require a fresh confirmation. It exports descriptors, schemas, contract text, origin/path, hashes, timestamps, and outcome flags. Raw inputs, outputs, errors, expected text, and URL query/fragment are omitted. Review descriptors and paths before sharing. DOM differences and substring matches are limited observations, not semantic proof.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Intent-to-tool fixtures for Prism's own browser-native WebMCP surface.",
+  "description": "Static intent-to-tool contract fixtures; not measured model routing accuracy.",
   "cases": [
     {
       "id": "read-current-contract",
@@ -14,7 +14,9 @@
       "id": "choose-operations-contract",
       "prompt": "Evaluate this as a project operations WebMCP.",
       "expectedTool": "choose_evaluation_profile",
-      "expectedArguments": { "profile": "operations" },
+      "expectedArguments": {
+        "profile": "operations"
+      },
       "expectedMode": "write",
       "expectedVisibleStateChange": true
     },
@@ -22,7 +24,9 @@
       "id": "run-commerce-example",
       "prompt": "Run the deterministic commerce evaluation and show me the result.",
       "expectedTool": "run_sample_evaluation",
-      "expectedArguments": { "profile": "commerce" },
+      "expectedArguments": {
+        "profile": "commerce"
+      },
       "expectedMode": "write",
       "expectedVisibleStateChange": true
     },
@@ -38,9 +42,19 @@
       "id": "reject-unsupported-profile",
       "prompt": "Switch Prism to a banking profile.",
       "expectedTool": "choose_evaluation_profile",
-      "expectedArguments": { "profile": "banking" },
+      "expectedArguments": {
+        "profile": "banking"
+      },
       "expectedMode": "write",
       "expectedError": "profile must be commerce, operations, editor, or custom."
+    },
+    {
+      "id": "evaluate-imported-snapshot",
+      "prompt": "Evaluate the snapshot currently entered against my custom contract.",
+      "expectedTool": "evaluate_current_snapshot",
+      "expectedArguments": {},
+      "expectedMode": "write",
+      "expectedVisibleStateChange": true
     }
   ]
 }

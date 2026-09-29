@@ -1,186 +1,121 @@
 'use client';
 
-import { useEffect } from 'react';
-
-import {
-  evaluateSnapshot,
-  getSampleSnapshot,
-  profiles,
-  type EvaluationReport,
-  type ProfileKey,
-} from '@/lib/evaluator';
-
-type Props = {
-  profile: ProfileKey;
-  targetUrl: string;
-  report: EvaluationReport;
-  onChooseProfile: (profile: ProfileKey) => void;
-  onRun: (profile: ProfileKey, report: EvaluationReport) => void;
-  onActivity: (activity: WebMCPActivity) => void;
-};
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
+import type { ProfileKey } from '@/lib/evaluator';
 
 export type WebMCPActivity = {
-  id: string;
-  tool: string;
-  title: string;
-  mode: 'read' | 'write';
-  status: 'completed' | 'failed';
-  timestamp: string;
+  id: string; tool: string; title: string; mode: 'read' | 'write'; status: 'completed' | 'failed'; timestamp: string;
 };
-
+type Props = {
+  context: Record<string, unknown>;
+  report: Record<string, unknown>;
+  onChooseProfile: (profile: ProfileKey) => void;
+  onRunSample: (profile: ProfileKey) => unknown;
+  onRunCurrent: () => unknown;
+  onActivity: (activity: WebMCPActivity) => void;
+  onStatus: (status: string) => void;
+};
 function objectInput(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Input must be an object.');
   return input as Record<string, unknown>;
 }
-
+function noInput(input: unknown) {
+  if (Object.keys(objectInput(input)).length) throw new Error('This tool takes no properties.');
+}
 function profileInput(input: unknown): ProfileKey {
-  const value = objectInput(input).profile;
-  if (value !== 'commerce' && value !== 'operations' && value !== 'editor' && value !== 'custom') {
-    throw new Error('profile must be commerce, operations, editor, or custom.');
-  }
+  const data = objectInput(input);
+  if (Object.keys(data).some(key => key !== 'profile')) throw new Error('Only profile is accepted.');
+  const value = data.profile;
+  if (value !== 'commerce' && value !== 'operations' && value !== 'editor' && value !== 'custom') throw new Error('profile must be commerce, operations, editor, or custom.');
   return value;
 }
+const emptySchema = { type: 'object', properties: {}, additionalProperties: false };
+const profileSchema = { type: 'object', properties: { profile: { type: 'string', enum: ['commerce', 'operations', 'editor', 'custom'], description: 'Choose a built-in contract, or custom to use the custom fields currently entered.' } }, required: ['profile'], additionalProperties: false };
 
-export function WebMCPProvider({ profile, targetUrl, report, onChooseProfile, onRun, onActivity }: Props) {
+export function WebMCPProvider(props: Props) {
+  const latest = useRef(props);
+  useLayoutEffect(() => { latest.current = props; });
   useEffect(() => {
     const context = document.modelContext;
-    if (typeof context?.registerTool !== 'function') return;
+    if (typeof context?.registerTool !== 'function') {
+      latest.current.onStatus('Manual mode: this browser does not expose document.modelContext. All dashboard controls remain available.');
+      return;
+    }
     const lifecycle = new AbortController();
-    const register = (tool: WebMCPTool) => {
-      const instrumentedTool: WebMCPTool = {
-        ...tool,
-        execute: async (input) => {
-          const timestamp = new Date().toISOString();
-          try {
-            const result = await tool.execute(input);
-            onActivity({
-              id: `${timestamp}-${tool.name}`,
-              tool: tool.name,
-              title: tool.title ?? tool.name,
-              mode: tool.annotations?.readOnlyHint === true ? 'read' : 'write',
-              status: 'completed',
-              timestamp,
-            });
-            return result;
-          } catch (error) {
-            onActivity({
-              id: `${timestamp}-${tool.name}`,
-              tool: tool.name,
-              title: tool.title ?? tool.name,
-              mode: tool.annotations?.readOnlyHint === true ? 'read' : 'write',
-              status: 'failed',
-              timestamp,
-            });
-            throw error;
-          }
+    const tools: WebMCPTool[] = [
+      {
+        name: 'get_evaluation_context', title: 'Get evaluation context',
+        description: 'Read the current draft profile, actual custom intent and tool names, approval rule, target label, and source selection shown in Prism.',
+        inputSchema: emptySchema, annotations: { readOnlyHint: true, untrustedContentHint: true },
+        execute: input => { noInput(input); return latest.current.context; },
+      },
+      {
+        name: 'choose_evaluation_profile', title: 'Choose evaluation profile',
+        description: 'Change the visible draft contract. Preserve imported JSON and the previous report; that report is marked stale until evaluated again.',
+        inputSchema: profileSchema, annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: input => {
+          const profile = profileInput(input);
+          flushSync(() => latest.current.onChooseProfile(profile));
+          return latest.current.context;
         },
-      };
+      },
+      {
+        name: 'run_sample_evaluation', title: 'Run sample evaluation',
+        description: 'Evaluate a built-in synthetic example against the requested contract and visibly mark it as an example. Custom uses the current custom fields; this never tests a live target.',
+        inputSchema: profileSchema, annotations: { readOnlyHint: false, untrustedContentHint: true },
+        execute: input => {
+          const profile = profileInput(input);
+          let result: unknown;
+          flushSync(() => { result = latest.current.onRunSample(profile); });
+          return result;
+        },
+      },
+      {
+        name: 'evaluate_current_snapshot', title: 'Evaluate current snapshot',
+        description: 'Evaluate the JSON currently entered in Runner snapshot against the visible contract and update the report. Requires Runner snapshot mode. Evidence is supplied, not independently verified.',
+        inputSchema: emptySchema, annotations: { readOnlyHint: false, untrustedContentHint: true },
+        execute: input => {
+          noInput(input);
+          if (latest.current.context.source !== 'snapshot') throw new Error('Select Runner snapshot and supply JSON first.');
+          let result: unknown;
+          flushSync(() => { result = latest.current.onRunCurrent(); });
+          return result;
+        },
+      },
+      {
+        name: 'get_latest_evaluation', title: 'Get latest evaluation',
+        description: 'Read the visible report including its exact contract, target, example or snapshot provenance, findings, and stale flag. A stale report does not describe the current draft.',
+        inputSchema: emptySchema, annotations: { readOnlyHint: true, untrustedContentHint: true },
+        execute: input => { noInput(input); return latest.current.report; },
+      },
+    ];
+    const register = async () => {
       try {
-        void Promise.resolve(context.registerTool(instrumentedTool, { signal: lifecycle.signal })).catch(console.error);
-      } catch (error) {
-        console.error(error);
+        for (const tool of tools) {
+          if (lifecycle.signal.aborted) return;
+          await context.registerTool({ ...tool, execute: async input => {
+            const timestamp = new Date().toISOString();
+            const activity = { id: `${timestamp}-${crypto.randomUUID()}`, tool: tool.name, title: tool.title || tool.name, mode: tool.annotations?.readOnlyHint === true ? 'read' as const : 'write' as const, timestamp };
+            try {
+              const result = await tool.execute(input);
+              latest.current.onActivity({ ...activity, status: 'completed' });
+              return result;
+            } catch (error) {
+              latest.current.onActivity({ ...activity, status: 'failed' });
+              throw error;
+            }
+          } }, { signal: lifecycle.signal });
+        }
+        if (!lifecycle.signal.aborted) latest.current.onStatus('WebMCP ready: five tools connected to the visible evaluation.');
+      } catch {
+        if (lifecycle.signal.aborted) return;
+        lifecycle.abort();
+        latest.current.onStatus('WebMCP registration failed. Use the dashboard controls or reload to retry.');
       }
     };
-
-    register({
-      name: 'get_evaluation_context',
-      title: 'Get evaluation context',
-      description: 'Read the currently selected WebMCP purpose profile, target label, expected capabilities, and human approval rule shown in Prism.',
-      inputSchema: {
-        type: 'object',
-        description: 'No input is required. Reads the evaluation contract currently visible in Prism.',
-        properties: {},
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: async (input) => {
-        if (Object.keys(objectInput(input)).length) throw new Error('This tool takes no properties.');
-        return {
-          profile,
-          targetUrl,
-          intent: profiles[profile].intent,
-          expectedCapabilities: profiles[profile].capabilities.map((capability) => capability.candidates[0]),
-          approvalRule: profiles[profile].approvalRule,
-        };
-      },
-    });
-
-    register({
-      name: 'choose_evaluation_profile',
-      title: 'Choose evaluation profile',
-      description: 'Select which declared WebMCP job Prism should evaluate. This changes the visible profile, intent, capability map, and sample scorecard.',
-      inputSchema: {
-        type: 'object',
-        description: 'Choose the product journey Prism should use as its evaluation contract.',
-        properties: {
-          profile: {
-            type: 'string',
-            description: 'commerce for product discovery and checkout; operations for work tracking and review; editor for reviewable content changes; custom for a user-declared job and approval boundary.',
-            enum: ['commerce', 'operations', 'editor', 'custom'],
-          },
-        },
-        required: ['profile'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: async (input) => {
-        const nextProfile = profileInput(input);
-        onChooseProfile(nextProfile);
-        return { selectedProfile: nextProfile, visibleStateChanged: true, intent: profiles[nextProfile].intent };
-      },
-    });
-
-    register({
-      name: 'run_sample_evaluation',
-      title: 'Run sample evaluation',
-      description: 'Run a deterministic example WebMCP evaluation for the selected purpose profile and update the visible report with its evidence-backed score.',
-      inputSchema: {
-        type: 'object',
-        description: 'Run Prism\'s deterministic example for exactly one declared product journey.',
-        properties: {
-          profile: {
-            type: 'string',
-            description: 'The evaluation profile to run. Use commerce, operations, or editor for built-in evidence; use custom for the currently declared custom contract.',
-            enum: ['commerce', 'operations', 'editor', 'custom'],
-          },
-        },
-        required: ['profile'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: async (input) => {
-        const nextProfile = profileInput(input);
-        const nextReport = evaluateSnapshot(profiles[nextProfile], getSampleSnapshot(nextProfile));
-        onRun(nextProfile, nextReport);
-        return { selectedProfile: nextProfile, score: nextReport.score, label: nextReport.label, visibleStateChanged: true };
-      },
-    });
-
-    register({
-      name: 'get_latest_evaluation',
-      title: 'Get latest evaluation',
-      description: 'Read the score, summary, journey coverage, and evidence findings currently visible in Prism.',
-      inputSchema: {
-        type: 'object',
-        description: 'No input is required. Reads only the latest report currently visible in Prism.',
-        properties: {},
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: async (input) => {
-        if (Object.keys(objectInput(input)).length) throw new Error('This tool takes no properties.');
-        return {
-          score: report.score,
-          label: report.label,
-          summary: report.summary,
-          journey: report.journey,
-          findings: report.findings,
-        };
-      },
-    });
-
+    void register();
     return () => lifecycle.abort();
-  }, [onActivity, onChooseProfile, onRun, profile, report, targetUrl]);
-
+  }, []);
   return null;
 }

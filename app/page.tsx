@@ -71,13 +71,14 @@ export default function Home() {
   const [profile, setProfile] = useState<ProfileKey>('commerce');
   const [targetUrl, setTargetUrl] = useState(sampleTargets.commerce);
   const [sourceMode, setSourceMode] = useState<SourceMode>('sample');
-  const [snapshotText, setSnapshotText] = useState(() => JSON.stringify(getSampleSnapshot('commerce'), null, 2));
+  const [snapshotText, setSnapshotText] = useState('');
   const [customIntent, setCustomIntent] = useState(profiles.custom.intent);
   const [customTools, setCustomTools] = useState('your_read_tool, your_write_tool');
   const [customApproval, setCustomApproval] = useState(profiles.custom.approvalRule);
   const [error, setError] = useState<string | null>(null);
   const [importNotice, setImportNotice] = useState<string | null>(null);
-  const [scanned, setScanned] = useState(false);
+  const [webmcpStatus, setWebmcpStatus] = useState('Checking browser support…');
+  const [reportMeta, setReportMeta] = useState({ source: 'sample' as SourceMode, profile: 'commerce' as ProfileKey, target: sampleTargets.commerce, contract: profiles.commerce, capturedAt: '', signature: JSON.stringify(['commerce', 'sample', sampleTargets.commerce, '', profiles.commerce]) });
   const [report, setReport] = useState<EvaluationReport>(() => evaluateSnapshot(profiles.commerce, getSampleSnapshot('commerce')));
   const [agentActivity, setAgentActivity] = useState<WebMCPActivity[]>([]);
 
@@ -86,69 +87,68 @@ export default function Home() {
     [customApproval, customIntent, customTools, profile],
   );
 
-  useEffect(() => {
-    const prefix = ['#prism-snapshot=', '#lens-snapshot='].find((candidate) => window.location.hash.startsWith(candidate));
-    if (!prefix) return;
-    queueMicrotask(() => {
-      try {
-        const raw = decodeSnapshotFragment(window.location.hash.slice(prefix.length));
-        const imported = parseSnapshot(raw);
-        const nextProfile = imported.profile && Object.hasOwn(profiles, imported.profile) ? imported.profile : 'custom';
-        const importedIntent = imported.contract?.intent?.trim() || profiles[nextProfile].intent;
-        const importedTools = imported.contract?.expectedTools?.join(', ') || imported.tools.map((tool) => tool.name).join(', ');
-        const importedApproval = imported.contract?.approvalRule?.trim() || profiles[nextProfile].approvalRule;
-        const nextEvaluationProfile = nextProfile === 'custom'
-          ? makeCustomProfile(importedIntent, importedTools, importedApproval)
-          : profiles[nextProfile];
+  const signature = JSON.stringify([profile, sourceMode, targetUrl, snapshotText, evaluationProfile]);
+  const stale = signature !== reportMeta.signature;
 
-        setProfile(nextProfile);
-        setTargetUrl(imported.target || sampleTargets[nextProfile]);
-        setSourceMode('snapshot');
-        setSnapshotText(JSON.stringify(imported, null, 2));
-        setCustomIntent(importedIntent);
-        setCustomTools(importedTools);
-        setCustomApproval(importedApproval);
-        setReport(evaluateSnapshot(nextEvaluationProfile, imported));
-        setScanned(true);
-        setImportNotice(`Imported a live companion snapshot with ${imported.tools.length} tool${imported.tools.length === 1 ? '' : 's'}.`);
-        setError(null);
-        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#report`);
-      } catch (reason) {
-        setError(reason instanceof Error ? `Companion import failed: ${reason.message}` : 'Companion import failed.');
-      }
-    });
+  const importSnapshot = useCallback((raw: string) => {
+    const imported = parseSnapshot(raw);
+    const nextProfile = imported.contract || !imported.profile ? 'custom' : imported.profile;
+    const intent = imported.contract?.intent || profiles[nextProfile].intent;
+    const names = imported.contract?.expectedTools?.join(', ') || imported.tools.map(tool => tool.name).join(', ');
+    const approval = imported.contract?.approvalRule || profiles[nextProfile].approvalRule;
+    const contract = nextProfile === 'custom' ? makeCustomProfile(intent, names, approval) : profiles[nextProfile];
+    const target = imported.target || 'Unspecified target';
+    const text = JSON.stringify(imported, null, 2);
+    setProfile(nextProfile); setTargetUrl(target); setSourceMode('snapshot'); setSnapshotText(text);
+    setCustomIntent(intent); setCustomTools(names); setCustomApproval(approval);
+    setReport(evaluateSnapshot(contract, imported));
+    setReportMeta({ source: 'snapshot', profile: nextProfile, target, contract, capturedAt: imported.capturedAt || '', signature: JSON.stringify([nextProfile, 'snapshot', target, text, contract]) });
+    setImportNotice(`Imported ${imported.tools.length} tools. Evidence is supplied by the snapshot and is not independently verified.`);
+    setError(null);
   }, []);
+
+  useEffect(() => {
+    const prefix = ['#prism-snapshot=', '#lens-snapshot='].find(candidate => window.location.hash.startsWith(candidate));
+    if (!prefix) return;
+    const fragment = window.location.hash.slice(prefix.length);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#report`);
+    queueMicrotask(() => {
+      try { importSnapshot(decodeSnapshotFragment(fragment)); }
+      catch (reason) { setError(reason instanceof Error ? `Companion import failed: ${reason.message}` : 'Companion import failed.'); }
+    });
+  }, [importSnapshot]);
 
   const chooseProfile = useCallback((nextProfile: ProfileKey) => {
-    const nextSnapshot = getSampleSnapshot(nextProfile);
     setProfile(nextProfile);
-    setTargetUrl(sampleTargets[nextProfile]);
-    setSnapshotText(JSON.stringify(nextSnapshot, null, 2));
-    setReport(evaluateSnapshot(profiles[nextProfile], nextSnapshot));
-    setScanned(false);
-    setImportNotice(null);
     setError(null);
   }, []);
 
-  const runEvaluation = useCallback(() => {
-    try {
-      const snapshot = sourceMode === 'sample' ? getSampleSnapshot(profile) : parseSnapshot(snapshotText);
-      const nextReport = evaluateSnapshot(evaluationProfile, snapshot);
-      setReport(nextReport);
-      setScanned(true);
-      setError(null);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'The snapshot could not be evaluated.');
-    }
-  }, [evaluationProfile, profile, snapshotText, sourceMode]);
+  const runEvaluation = useCallback((sampleProfile?: ProfileKey) => {
+    const nextProfile = sampleProfile ?? profile;
+    const source = sampleProfile ? 'sample' : sourceMode;
+    const contract = nextProfile === 'custom' ? makeCustomProfile(customIntent, customTools, customApproval) : profiles[nextProfile];
+    if (!contract.intent || !contract.approvalRule || !contract.capabilities.length) throw new Error('Complete the custom intent, expected tool names, and approval rule before evaluating.');
+    const snapshot = source === 'sample' ? getSampleSnapshot(nextProfile) : parseSnapshot(snapshotText);
+    const target = source === 'sample' ? snapshot.target || sampleTargets[nextProfile] : snapshot.target || targetUrl;
+    const nextReport = evaluateSnapshot(contract, snapshot);
+    const meta = { source, profile: nextProfile, target, contract, capturedAt: snapshot.capturedAt || '', signature: JSON.stringify([nextProfile, source, target, snapshotText, contract]) };
+    setProfile(nextProfile); setSourceMode(source); setTargetUrl(target); setReport(nextReport); setReportMeta(meta); setError(null); setImportNotice(null);
+    return { ...nextReport, source, profile: nextProfile, target, contract, capturedAt: meta.capturedAt, stale: false };
+  }, [profile, sourceMode, customIntent, customTools, customApproval, snapshotText, targetUrl]);
 
-  const handleWebMCPRun = useCallback((nextProfile: ProfileKey, nextReport: EvaluationReport) => {
-    setProfile(nextProfile);
-    setTargetUrl(sampleTargets[nextProfile]);
-    setReport(nextReport);
-    setScanned(true);
-    setError(null);
-  }, []);
+  const resetEvaluation = () => {
+    setProfile('commerce'); setTargetUrl(sampleTargets.commerce); setSourceMode('sample'); setSnapshotText('');
+    setCustomIntent(profiles.custom.intent); setCustomTools('your_read_tool, your_write_tool'); setCustomApproval(profiles.custom.approvalRule);
+    setReport(evaluateSnapshot(profiles.commerce, getSampleSnapshot('commerce')));
+    setReportMeta({ source: 'sample', profile: 'commerce', target: sampleTargets.commerce, contract: profiles.commerce, capturedAt: '', signature: JSON.stringify(['commerce', 'sample', sampleTargets.commerce, '', profiles.commerce]) });
+    setError(null); setImportNotice(null);
+  };
+  const latestReport = { ...report, source: reportMeta.source, profile: reportMeta.profile, target: reportMeta.target, contract: reportMeta.contract, capturedAt: reportMeta.capturedAt, stale };
+  const downloadReport = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify({ reportVersion: 1, ...latestReport, limitation: 'Rubric over supplied evidence; no independent task or approval verification.' }, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'prism-report.json'; anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const handleWebMCPActivity = useCallback((activity: WebMCPActivity) => {
     setAgentActivity((current) => [activity, ...current].slice(0, 5));
@@ -157,12 +157,13 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <WebMCPProvider
-        profile={profile}
-        targetUrl={targetUrl}
-        report={report}
+        context={{ profile, targetUrl, source: sourceMode, intent: evaluationProfile.intent, expectedCapabilities: evaluationProfile.capabilities.map(capability => capability.candidates[0]), approvalRule: evaluationProfile.approvalRule }}
+        report={latestReport}
         onChooseProfile={chooseProfile}
-        onRun={handleWebMCPRun}
+        onRunSample={(nextProfile) => runEvaluation(nextProfile)}
+        onRunCurrent={() => runEvaluation()}
         onActivity={handleWebMCPActivity}
+        onStatus={setWebmcpStatus}
       />
 
       <header className="sticky top-0 z-40 border-b border-white/8 bg-[#09110f]/92 backdrop-blur-xl">
@@ -179,7 +180,7 @@ export default function Home() {
           <nav className="flex items-center gap-1" aria-label="Primary navigation">
             <a href="#profiles" className="hidden rounded-md px-3 py-2 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white sm:inline-flex">Profiles</a>
             <a href="#method" className="hidden rounded-md px-3 py-2 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white sm:inline-flex">Method</a>
-            <Button className="ml-2 bg-emerald-300 text-[#07110e] hover:bg-emerald-200" onClick={() => chooseProfile('commerce')}>
+            <Button className="ml-2 bg-emerald-300 text-[#07110e] hover:bg-emerald-200" onClick={resetEvaluation}>
               <RotateCcw className="size-3.5" /> New evaluation
             </Button>
           </nav>
@@ -194,12 +195,12 @@ export default function Home() {
             </div>
             <h1 className="max-w-2xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.055em] text-white sm:text-5xl lg:text-[62px]">
               Tell us what the WebMCP is for.
-              <span className="block text-white/35">Then test whether it delivers.</span>
+              <span className="block text-white/65">See what the evidence supports.</span>
             </h1>
-            <p className="mt-5 max-w-2xl text-pretty text-base leading-7 text-white/55 sm:text-lg">
-              Generic scanners reward surface area. Prism scores the tool contract against a declared job, its real side effects, and the evidence a person can verify on the page.
+            <p className="mt-5 max-w-2xl text-pretty text-base leading-7 text-white/65 sm:text-lg">
+              Compare expected tool names with a browser snapshot, inspect reported outcomes, and see exactly which evidence is missing. All analysis runs in your browser.
             </p>
-            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/45">
+            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/65">
               <span className="flex items-center gap-2"><Check className="size-3.5 text-emerald-300" /> Purpose-specific coverage</span>
               <span className="flex items-center gap-2"><Check className="size-3.5 text-emerald-300" /> Mutation read-back</span>
               <span className="flex items-center gap-2"><Check className="size-3.5 text-emerald-300" /> Human approval boundaries</span>
@@ -210,7 +211,7 @@ export default function Home() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-white">Evaluation setup</p>
-                <p className="mt-1 text-xs text-white/40">A declared contract keeps the score honest.</p>
+                <p className="mt-1 text-xs text-white/65">A declared contract keeps the score honest.</p>
               </div>
               <Badge className="border border-emerald-200/20 bg-emerald-200/10 text-emerald-100">Profile + evidence</Badge>
             </div>
@@ -218,13 +219,13 @@ export default function Home() {
             <div className="grid gap-4 sm:grid-cols-[145px_1fr] sm:items-start">
               <label className="pt-2 text-xs font-medium text-white/60" htmlFor="profile">What is it?</label>
               <div>
-                <NativeSelect id="profile" className="w-full" value={profile} onChange={(event) => chooseProfile(event.target.value as ProfileKey)}>
+                <NativeSelect id="profile" className="w-full text-white [color-scheme:dark]" value={profile} onChange={(event) => chooseProfile(event.target.value as ProfileKey)}>
                   <NativeSelectOption value="commerce">Commerce & checkout</NativeSelectOption>
                   <NativeSelectOption value="operations">Project operations</NativeSelectOption>
                   <NativeSelectOption value="editor">Content editor</NativeSelectOption>
                   <NativeSelectOption value="custom">Custom contract</NativeSelectOption>
                 </NativeSelect>
-                <p className="mt-2 text-xs leading-5 text-white/40">{evaluationProfile.intent}</p>
+                <p className="mt-2 text-xs leading-5 text-white/65">{evaluationProfile.intent}</p>
               </div>
 
               <label className="pt-2 text-xs font-medium text-white/60" htmlFor="target-url">Target label</label>
@@ -241,15 +242,16 @@ export default function Home() {
             {profile === 'custom' && (
               <div className="mt-5 rounded-xl border border-emerald-200/15 bg-emerald-200/[0.045] p-4">
                 <div className="mb-3 flex items-center gap-2 text-xs font-medium text-emerald-100"><Sparkles className="size-3.5" /> Custom evaluation contract</div>
-                <label className="text-[11px] text-white/45" htmlFor="custom-intent">The job to be done</label>
+                <label className="text-[11px] text-white/65" htmlFor="custom-intent">The job to be done</label>
                 <Textarea id="custom-intent" value={customIntent} onChange={(event) => setCustomIntent(event.target.value)} className="mt-1 min-h-16 border-white/10 bg-black/15 text-xs text-white" />
-                <label className="mt-3 block text-[11px] text-white/45" htmlFor="custom-tools">Expected tool names, comma separated</label>
+                <label className="mt-3 block text-[11px] text-white/65" htmlFor="custom-tools">Expected tool names, comma separated</label>
                 <Input id="custom-tools" value={customTools} onChange={(event) => setCustomTools(event.target.value)} className="mt-1 border-white/10 bg-black/15 text-xs text-white" />
-                <label className="mt-3 block text-[11px] text-white/45" htmlFor="custom-approval">What must remain human-approved?</label>
+                <label className="mt-3 block text-[11px] text-white/65" htmlFor="custom-approval">What must remain human-approved?</label>
                 <Input id="custom-approval" value={customApproval} onChange={(event) => setCustomApproval(event.target.value)} className="mt-1 border-white/10 bg-black/15 text-xs text-white" />
               </div>
             )}
 
+            <p className="mt-3 text-xs text-white/65">Target labels are for reference. Prism does not visit or scan the URL. Snapshots stay in this tab; download your report before closing.</p>
             <div className="mt-5 rounded-xl border border-white/8 bg-black/15 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs font-medium text-white/60">Evidence source</span>
@@ -257,14 +259,14 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setSourceMode('sample')}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] transition ${sourceMode === 'sample' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] transition ${sourceMode === 'sample' ? 'bg-white/10 text-white' : 'text-white/65 hover:text-white/70'}`}
                   >
                     <FlaskConical className="size-3" /> Sample
                   </button>
                   <button
                     type="button"
                     onClick={() => setSourceMode('snapshot')}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] transition ${sourceMode === 'snapshot' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70'}`}
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] transition ${sourceMode === 'snapshot' ? 'bg-white/10 text-white' : 'text-white/65 hover:text-white/70'}`}
                   >
                     <ClipboardPaste className="size-3" /> Runner snapshot
                   </button>
@@ -286,7 +288,16 @@ export default function Home() {
                     aria-label="Runner snapshot JSON"
                     className="max-h-48 min-h-36 resize-y border-white/10 bg-[#050a08] font-mono text-[10px] leading-4 text-emerald-50/75 focus-visible:border-emerald-300/40 focus-visible:ring-emerald-300/10"
                   />
-                  <p className="mt-2 text-[10px] leading-4 text-white/35">Paste a browser-runner snapshot with <code>runtime</code>, <code>tools</code>, annotations, and behavioral evidence.</p>
+                  <label className="mt-3 block text-xs text-white/70">Import snapshot file
+                    <input type="file" accept=".json,application/json" className="mt-2 block max-w-full" onChange={async event => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      try { if (file.size > 1_000_000) throw new Error('Snapshot exceeds the 1 MB limit.'); importSnapshot(await file.text()); }
+                      catch (reason) { setError(reason instanceof Error ? reason.message : 'Import failed.'); }
+                      event.target.value = '';
+                    }} />
+                  </label>
+                  <p className="mt-2 text-[10px] leading-4 text-white/65">Paste a browser-runner snapshot with <code>runtime</code>, <code>tools</code>, annotations, and behavioral evidence.</p>
                 </div>
               )}
             </div>
@@ -294,7 +305,7 @@ export default function Home() {
             {error && <p role="alert" className="mt-3 text-xs text-rose-300">{error}</p>}
             {importNotice && <output className="mt-3 block rounded-lg border border-emerald-200/15 bg-emerald-200/[0.06] px-3 py-2 text-xs text-emerald-100">{importNotice}</output>}
 
-            <Button size="lg" className="mt-5 h-11 w-full bg-emerald-300 text-[#07110e] hover:bg-emerald-200" onClick={runEvaluation}>
+            <Button size="lg" className="mt-5 h-11 w-full bg-emerald-300 text-[#07110e] hover:bg-emerald-200" onClick={() => { try { runEvaluation(); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Evaluation failed.'); } }}>
               <Play className="size-4 fill-current" />
               {sourceMode === 'sample' ? 'Run purpose-aware example' : 'Evaluate runner snapshot'}
               <ArrowRight className="ml-auto size-4" />
@@ -306,17 +317,26 @@ export default function Home() {
       <section id="report" className="mx-auto max-w-[1500px] scroll-mt-20 px-5 py-8 lg:px-8 lg:py-10">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"><Gauge className="size-4" /> {scanned ? 'Latest evaluation' : 'Example evaluation'}</div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"><Gauge className="size-4" /> {reportMeta.source === 'sample' ? 'Example evaluation · synthetic evidence' : 'Snapshot evaluation · supplied evidence'}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">A score that explains what “good” means</h2>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="size-2 rounded-full bg-emerald-400" /> Contract profile: {evaluationProfile.label}</div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="size-2 rounded-full bg-emerald-400" /> Report contract: {reportMeta.contract.label}</div>
         </div>
 
+        <div className="mb-4 rounded-xl border bg-card p-4 text-sm" data-testid="report-context">
+          <p className="break-all">Target: {reportMeta.target}</p>
+          <p className="mt-1">{reportMeta.contract.intent}</p>
+          <p className="mt-1 text-muted-foreground">{reportMeta.contract.approvalRule}</p>
+          {reportMeta.capturedAt && <p className="mt-1 text-xs">Snapshot timestamp (supplied): {reportMeta.capturedAt}</p>}
+          <p className="mt-2 text-xs text-muted-foreground">This is a rubric over supplied signals, not a certification of task completion.</p>
+          {stale && <output className="mt-3 font-medium text-amber-700">Setup changed. Run evaluation to refresh this report.</output>}
+          <Button variant="outline" className="mt-3" onClick={downloadReport}>Download report JSON</Button>
+        </div>
         <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1.35fr)_minmax(340px,.9fr)]">
           <article className="score-card rounded-2xl border bg-card p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Purpose fit</p>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Evidence score</p>
                 <p className="mt-3 text-6xl font-semibold tracking-[-0.07em]">{report.score}</p>
               </div>
               <Badge className={report.label === 'Strong' ? 'bg-emerald-100 text-emerald-800' : report.label === 'Incomplete' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}>{report.label}</Badge>
@@ -344,11 +364,11 @@ export default function Home() {
 
           <article className="rounded-2xl border bg-card p-5">
             <div className="flex items-center justify-between">
-              <div><p className="text-sm font-semibold">Evidence, not vibes</p><p className="mt-1 text-xs text-muted-foreground">Checks are tied to the declared contract.</p></div>
+              <div><p className="text-sm font-semibold">Evidence findings</p><p className="mt-1 text-xs text-muted-foreground">Checks are tied to the declared contract.</p></div>
               <ShieldCheck className="size-5 text-emerald-600" />
             </div>
             <div className="mt-5 divide-y">
-              {report.findings.slice(0, 4).map((finding) => (
+              {report.findings.map((finding) => (
                 <div key={finding.title} className="flex gap-3 py-4 first:pt-0 last:pb-0">
                   <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full ${findingTone(finding.state)}`}>{findingIcon(finding.state)}</span>
                   <div><p className="text-sm font-medium leading-5">{finding.title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{finding.detail}</p></div>
@@ -358,7 +378,7 @@ export default function Home() {
           </article>
         </div>
 
-        <div id="dimensions" className="mt-4 grid scroll-mt-20 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div id="dimensions" className="mt-4 grid scroll-mt-20 gap-4 md:grid-cols-2 xl:grid-cols-5">
           {report.dimensions.map((dimension) => (
             <article key={dimension.name} className="rounded-xl border bg-card p-4">
               <div className="flex items-center justify-between"><p className="text-sm font-medium">{dimension.name}</p><span className="font-mono text-sm font-semibold text-emerald-700">{dimension.score}</span></div>
@@ -379,10 +399,11 @@ export default function Home() {
             </div>
             <Badge variant="outline">Last {agentActivity.length} of 5</Badge>
           </div>
+          <output className="mt-3 block text-xs text-muted-foreground">{webmcpStatus}</output>
           <div className="mt-4" aria-live="polite">
             {agentActivity.length === 0 ? (
               <div className="rounded-xl border border-dashed bg-background/50 px-4 py-5 text-sm text-muted-foreground">
-                No agent calls yet. Invoke one of Prism&apos;s four WebMCP tools to see an auditable read/write trace.
+                No agent calls yet. Invoke one of Prism&apos;s five WebMCP tools to see an auditable read/write trace.
               </div>
             ) : (
               <ol className="divide-y rounded-xl border bg-background/50 px-4">
@@ -406,14 +427,14 @@ export default function Home() {
           <div className="grid lg:grid-cols-[.9fr_1.1fr]">
             <div className="border-b border-white/8 p-6 lg:border-b-0 lg:border-r lg:p-8">
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.15em] text-emerald-200/60"><MonitorDot className="size-3.5" /> Honest execution boundary</div>
-              <h3 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">The browser observes. The dashboard judges.</h3>
-              <p className="mt-3 text-sm leading-6 text-white/50">WebMCP tools belong to the page that registered them. A normal hosted scanner cannot discover or execute another origin&apos;s tools through an iframe or an HTTP fetch. Prism therefore separates collection from evaluation.</p>
-              <Alert className="mt-5 border-emerald-200/15 bg-emerald-200/[0.06] text-emerald-50">
+              <h3 className="mt-4 text-2xl font-semibold tracking-[-0.035em]">Collect observations. Review the evidence.</h3>
+              <p className="mt-3 text-sm leading-6 text-white/65">WebMCP tools belong to the page that registered them. A normal hosted scanner cannot discover or execute another origin&apos;s tools through an iframe or an HTTP fetch. Prism therefore separates collection from evaluation.</p>
+              <Alert role="note" className="mt-5 border-emerald-200/15 bg-emerald-200/[0.06] text-emerald-50">
                 <ShieldCheck />
                 <AlertTitle>Live browser companion available</AlertTitle>
                 <AlertDescription className="text-emerald-50/55">
                   Discover the current tool set, run a browser-mediated check, and import the evidence here.{' '}
-                  <a className="font-medium text-emerald-200 underline underline-offset-4 hover:text-white" href="https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip">Download the MIT-licensed extension</a>.
+                  <a className="font-medium text-emerald-200 underline underline-offset-4 hover:text-white" download href="/prism-webmcp-companion.zip">Download the MIT-licensed extension</a>.
                 </AlertDescription>
               </Alert>
             </div>
@@ -421,14 +442,14 @@ export default function Home() {
               {[
                 [TerminalSquare, '1 · Declare', 'Choose the product type, job, expected tools, and human-only boundary.'],
                 [Code2, '2 · Collect', 'A compatible browser opens the target page, discovers tools, executes test cases, and records state evidence.'],
-                [ScanSearch, '3 · Evaluate', 'Prism maps observed behavior to the declared journey and produces an explainable repair list.'],
+                [ScanSearch, '3 · Evaluate', 'Prism matches expected names, checks supplied evidence, and lists missing signals. You verify semantic correctness.'],
               ].map(([Icon, title, detail]) => {
                 const StepIcon = Icon as typeof TerminalSquare;
                 return (
                   <div key={title as string} className="bg-[#101916] p-6 lg:p-8">
                     <StepIcon className="size-5 text-emerald-300" />
                     <p className="mt-5 text-sm font-medium">{title as string}</p>
-                    <p className="mt-2 text-xs leading-5 text-white/45">{detail as string}</p>
+                    <p className="mt-2 text-xs leading-5 text-white/65">{detail as string}</p>
                   </div>
                 );
               })}
@@ -440,7 +461,7 @@ export default function Home() {
           {[
             [Layers3, 'Declared context', 'Choose a profile or define the exact user journey and expected capabilities.'],
             [FlaskConical, 'Behavioral checks', 'Exercise tools and compare their results with the same live page state.'],
-            [Sparkles, 'Actionable repairs', 'Get a contract-level fix with the evidence required to re-run the check.'],
+            [Sparkles, 'Actionable repairs', 'See missing names and evidence, repair the implementation, then collect a new snapshot.'],
           ].map(([Icon, title, detail]) => {
             const FeatureIcon = Icon as typeof Layers3;
             return (
@@ -453,7 +474,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t bg-card/50 px-5 py-6 text-center text-xs text-muted-foreground">Prism evaluates WebMCP contracts through declared purpose, page-scoped evidence, and human-in-the-loop checks.</footer>
+      <footer className="border-t bg-card/50 px-5 py-6 text-center text-xs text-muted-foreground">Prism · Free and open source · <a className="underline" href="https://github.com/agammann/prism-webmcp">Source and setup guide</a></footer>
     </main>
   );
 }

@@ -1,89 +1,122 @@
 # Prism
 
-**Purpose-aware evaluation for WebMCP.**
+**Inspect the evidence behind a WebMCP tool contract.**
 
-Prism is a WebMCP evaluation dashboard plus a local-first browser companion. Instead of rewarding any large tool surface, it scores the tools exposed in the current page state against the job the WebMCP is meant to perform.
+[Use Prism](https://prism.alx21.chatgpt.site/) · [Download the companion](https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip)
 
-[Open the live app](https://prism.alx21.chatgpt.site/) · [Download the browser companion](https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip)
+Prism is a free, browser-based tool for comparing the capabilities you expect with a snapshot of a page's WebMCP tools. It shows missing tool names, incomplete schemas and annotations, missing outcome evidence, and an unverified human approval boundary. Use it to decide what to test or repair next.
 
-![Prism social preview](public/og.png)
+No account or API key is needed. The dashboard evaluates JSON locally. It does not visit the target URL, run tools on another site, or independently certify that a task was completed. The optional companion lets you collect evidence in a compatible browser.
 
-## Why Prism
+## Try it
 
-A generic scanner can tell you that a page registered four tools. It cannot tell you whether those four tools cover the user's journey, whether a mutation changed the same state the person sees, or whether a consequential action still belongs to the person.
+1. Open Prism and run a built-in Commerce, Operations, or Editor example. Examples always remain labeled **synthetic evidence**.
+2. Select **Runner snapshot** to paste JSON, or import a JSON file. A file or companion-link import restores its declared contract; pasted JSON is evaluated against the contract currently selected in the form.
+3. Use **Custom contract** for your actual task, tool names, and human approval rule. Changing a profile preserves imported JSON. Changes to the setup mark the previous report stale.
+4. Choose **Evaluate runner snapshot** and review every finding. The report identifies its source, target, exact contract, and supplied timestamp.
+5. Choose **Download report JSON** to save the report, including provenance and whether it is stale. Keep your original snapshot separately for reruns.
 
-Prism starts with a declared contract:
+State lives in the open tab and is lost on reload or close. **New evaluation** clears the current draft and restores the Commerce example. No evaluation history is stored by Prism.
 
-- the product's purpose and intended user journey;
-- the capabilities the agent needs;
-- the mutation evidence that must survive visible read-back; and
-- the action that must remain human-approved.
+## Collect a snapshot
 
-It then produces an interpretable score across purpose coverage, contract quality, observable proof, and runtime hygiene. Every deduction includes the underlying evidence and a repair that can be retested.
+[Install and use the companion](extension/README.md) on a page you are developing or authorized to test. It requires the browser to expose `document.modelContext.getTools()` and `executeTool()`; the dashboard itself works without WebMCP support.
 
-Prism also keeps a privacy-preserving on-page activity trace for its own WebMCP calls. It records the tool name, read/write mode, outcome, and time without retaining tool inputs or outputs.
+The companion discovers tools in the active page, executes only selected calls, and exports a snapshot. Every tool not explicitly read-only requires a fresh confirmation. Supply expected text to check a read result, or a read-back tool plus expected text to check a mutation. The latest run for each tool is used; separate partial successes are never combined.
 
-## Human and agent workflow
+**A completed call is not a completed task.** A DOM digest can change because a status indicator changed. A substring assertion can match irrelevant text. Independently inspect the intended outcome. The companion does not prove lifecycle cleanup or the target application's human approval boundary.
 
-1. A person chooses Commerce, Project Operations, Content Editor, or defines a Custom contract.
-2. The companion runs on the target page, where `document.modelContext` is actually available.
-3. It discovers tools, executes only developer-selected checks, records annotations and privacy-preserving state evidence, and exports a versioned snapshot.
-4. Prism maps the observed behavior to the declared journey and explains any missing coverage or proof.
-5. The team repairs the tool contract and runs the same evaluation again.
+Exports omit raw inputs, outputs, error text, assertion text, and URL query/fragment. Descriptors, schemas, contract text, URL path, timestamps, hashes, and outcomes remain; review them before sharing. [Privacy details](extension/PRIVACY.md).
 
-The dashboard remains fully usable through its visible interface. It also exposes four page-side WebMCP tools so an agent can read the same context and update the same visible evaluation state:
+## Snapshot format
 
-- `get_evaluation_context`
-- `choose_evaluation_profile`
-- `run_sample_evaluation`
-- `get_latest_evaluation`
+```json
+{
+  "schemaVersion": 1,
+  "target": "https://your-app.example/workspace",
+  "profile": "custom",
+  "contract": {
+    "intent": "Read the current work item",
+    "expectedTools": ["get_work_item"],
+    "approvalRule": "A person approves closing the item"
+  },
+  "runtime": {
+    "webmcpAvailable": true,
+    "topLevelPage": true,
+    "lifecycleCleanup": null
+  },
+  "tools": [{
+    "name": "get_work_item",
+    "description": "Read the selected work item",
+    "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+    "annotations": { "readOnlyHint": true },
+    "evidence": { "readBackVerified": true }
+  }]
+}
+```
 
-## Honest execution boundary
+Evidence flags must be actual booleans. Omit unobserved evidence; do not set it to `true` merely because a call returned. `false` means a negative observation, particularly for `humanConfirmationPreserved`. Runtime observations may be `null` when unknown. Schema version 1 and legacy snapshots without a version are accepted, up to 500 tools and 1 MB of text. Duplicate or ambiguously normalized names are rejected.
 
-WebMCP tools belong to the page that registered them. A hosted dashboard cannot discover or execute another origin's tools through an iframe or HTTP fetch. Prism therefore separates collection from evaluation rather than claiming cross-origin access it does not have.
+## How scoring works
 
-The Manifest V3 companion requests only `activeTab` and `scripting`. It does not run persistently on every site. Mutating calls require a fresh one-call confirmation, and exported snapshots omit page text and tool output. They retain hashes, lengths, timing, schemas, annotations, inputs, and pass/fail evidence.
+| Dimension | Weight | What receives credit |
+| --- | ---: | --- |
+| Name coverage | 30% | Each expected name or built-in alias is present |
+| Schema shape | 10% | Object input schemas with `additionalProperties: false` |
+| Read/write annotations | 10% | Explicit boolean `readOnlyHint` |
+| Reported outcomes | 25% | Reads: an assertion; writes: visible change and read-back from the same run |
+| Runtime evidence | 10% | Discovery, top-level page, and lifecycle observations |
+| Approval evidence | 15% | A reported preserved human boundary, with no reported violations |
 
-See [`extension/README.md`](extension/README.md) and [`extension/PRIVACY.md`](extension/PRIVACY.md) for the complete installation, safety, and data-handling model.
+Missing evidence earns no credit. Unknown annotations are counted separately from reads and writes. **Strong** requires every rubric condition, not just a high numeric score. Even a Strong report is only as trustworthy as its input: name matching is not semantic verification, schema shape is not full schema validation, and booleans are not independently checked by the dashboard.
 
-## Repository map
+## Use with an agent
 
-- `app/` and `lib/`: the purpose-aware evaluation interface and scoring engine.
-- `components/webmcp-provider.tsx`: Prism's own page-side WebMCP tools.
-- `extension/`: the open-source browser companion.
-- `extension/test/`: deterministic snapshot and safety tests.
-- `evals/webmcp-routing.json`: natural-language intent-to-tool fixtures for Prism's own tool surface.
-- `worker.ts`: the production response wrapper that applies security headers without changing the WebMCP runtime.
+In a browser implementing the [WebMCP document API](https://webmachinelearning.github.io/webmcp/), Prism registers five tools with lifecycle cleanup:
+
+| Tool | Input | Behavior |
+| --- | --- | --- |
+| `get_evaluation_context` | `{}` | Reads the current draft, including actual custom fields and source |
+| `choose_evaluation_profile` | `{"profile":"custom"}` | Changes the draft; preserves JSON and marks the previous report stale |
+| `run_sample_evaluation` | `{"profile":"editor"}` | Evaluates a synthetic example; `custom` uses the current custom fields |
+| `evaluate_current_snapshot` | `{}` | Evaluates entered JSON in Runner snapshot mode using the visible contract |
+| `get_latest_evaluation` | `{}` | Reads report, provenance, exact contract, findings, and stale flag |
+
+Profiles are `commerce`, `operations`, `editor`, and `custom`. Extra input properties and unknown profiles are rejected. Tools stay registered across state changes and use the same actions as the UI. Registration failure is shown on the page; manual controls remain available. Agent activity records the last five tool names, modes, timestamps, and call status, without arguments or results.
 
 ## Run locally
 
-Prerequisites: Node.js 22.13 or later and pnpm.
+Requires Node.js 24 or newer and pnpm 11.19.0.
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Then open the printed local URL. Run the release checks with:
+Open the printed localhost URL. There is no provider credential or database to configure. The development server uses a local preview mode; production uses a Cloudflare Worker with response security headers.
 
 ```sh
 pnpm test
 pnpm lint
+pnpm typecheck
+pnpm exec playwright install chromium
+pnpm test:e2e
 pnpm build
+pnpm start
 ```
 
-The test command verifies companion behavior, Prism's routing fixtures, and its production security-header contract.
+`pnpm start` serves the built Worker locally through Wrangler. CI installs Chromium with its Linux dependencies and runs the same checks. Unit tests exercise parsing, scoring, companion evidence, and security headers. Browser tests exercise import, stale reports, exports, custom agent actions, responsive layout, and the actual companion popup/injected code with stubbed Chrome transport and WebMCP. These stubs do not establish browser compatibility; separately test your chosen browser's native APIs. Routing fixtures are static contract checks, not model evaluation results.
 
-## Judge quick test
+To rebuild the companion download after changes: `pnpm package:companion`. `pnpm verify:companion` confirms that the ZIP matches the extension sources.
 
-1. Open [the deployed app](https://prism.alx21.chatgpt.site/) in ChatGPT's in-app browser.
-2. Confirm that four Prism WebMCP tools are available.
-3. Call `get_evaluation_context` with `{}`.
-4. Call `choose_evaluation_profile` with `{ "profile": "operations" }` and verify that the visible profile, intent, target label, capability map, and scorecard change.
-5. Call `run_sample_evaluation` with `{ "profile": "operations" }`.
-6. Call `get_latest_evaluation` with `{}` and compare its score, journey, and findings with the visible report.
-7. For target-page evaluation, install the downloadable companion, collect a snapshot on a WebMCP-enabled page, and import it into Prism through the Runner snapshot control.
+## Repository map
 
-## License
+- `app/`: dashboard and metadata
+- `lib/evaluator.ts`: snapshot validation and evidence rubric
+- `components/webmcp-provider.tsx`: stable page-side tool registration
+- `extension/`: Manifest V3 companion, privacy guide, and unit tests
+- `test/` and `e2e/`: evaluator and browser regression tests
+- `worker.ts`: production security-header wrapper
+- `.github/workflows/ci.yml`: build and verification
 
-MIT. See [`LICENSE`](LICENSE).
+MIT licensed. See [LICENSE](LICENSE).

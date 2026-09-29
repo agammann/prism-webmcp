@@ -51,8 +51,8 @@ export function normalizeTool(tool) {
     description: String(tool.description || ''),
     inputSchema: inputSchema && typeof inputSchema === 'object' ? inputSchema : { type: 'object' },
     annotations: {
-      readOnlyHint: tool.annotations?.readOnlyHint === true,
-      untrustedContentHint: tool.annotations?.untrustedContentHint === true,
+      readOnlyHint: typeof tool.annotations?.readOnlyHint === 'boolean' ? tool.annotations.readOnlyHint : undefined,
+      untrustedContentHint: typeof tool.annotations?.untrustedContentHint === 'boolean' ? tool.annotations.untrustedContentHint : undefined,
     },
     origin: typeof tool.origin === 'string' ? tool.origin : undefined,
   };
@@ -60,16 +60,15 @@ export function normalizeTool(tool) {
 
 export function applyExecutionEvidence(tools, executions) {
   return tools.map((tool) => {
-    const relevant = executions.filter((execution) => execution.tool === tool.name && execution.status === 'passed');
-    const mutationRuns = relevant.filter((execution) => execution.readOnly === false);
-    const readRuns = relevant.filter((execution) => execution.readOnly === true);
+    // Only the latest run belongs to the current result; never combine partial successes.
+    const latest = executions.findLast(execution => execution.tool === tool.name);
+    const passed = latest?.status === 'passed';
     return {
       ...tool,
-      evidence: {
-        visibleStateChanged: mutationRuns.some((execution) => execution.visibleStateChanged === true),
-        readBackVerified: mutationRuns.some((execution) => execution.readBackVerified === true) || readRuns.length > 0,
-        humanConfirmationPreserved: false,
-      },
+      evidence: latest ? {
+        visibleStateChanged: passed && latest.readOnly === false && latest.visibleStateChanged === true,
+        readBackVerified: passed && latest.readBackVerified === true,
+      } : {},
     };
   });
 }
@@ -78,11 +77,11 @@ export function buildSnapshot({ page, tools, executions, contract }) {
   const profile = PROFILE_KEYS.includes(contract.profile) ? contract.profile : 'custom';
   return {
     schemaVersion: 1,
-    target: page.url,
+    target: (() => { const url = new URL(page.url); return url.origin + url.pathname; })(),
     capturedAt: new Date().toISOString(),
     collector: {
       name: 'Prism WebMCP Companion',
-      version: '0.1.0',
+      version: '0.2.0',
       mode: 'browser-mediated',
     },
     profile,
@@ -98,11 +97,14 @@ export function buildSnapshot({ page, tools, executions, contract }) {
       collectionMethod: 'document.modelContext.getTools',
     },
     tools: applyExecutionEvidence(tools, executions).map(({ origin, ...tool }) => ({ ...tool, origin })),
-    executions: executions.map((execution) => {
-      const exported = { ...execution };
-      delete exported.outputPreview;
-      return exported;
-    }),
+    executions: executions.map(execution => ({
+      tool: execution.tool, readOnly: execution.readOnly, status: execution.status,
+      startedAt: execution.startedAt, durationMs: execution.durationMs,
+      outputHash: execution.outputHash, outputLength: execution.outputLength,
+      visibleStateChanged: execution.visibleStateChanged,
+      beforeStateHash: execution.beforeStateHash, afterStateHash: execution.afterStateHash,
+      readBackTool: execution.readBackTool, readBackVerified: execution.readBackVerified,
+    })),
     limitations: [
       'Tool lifecycle ownership is not exposed by getTools() and is therefore unverified.',
       'Visible-state evidence is a privacy-preserving DOM digest, not a semantic assertion.',
@@ -117,4 +119,3 @@ export function toBase64Url(value) {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
 }
-
