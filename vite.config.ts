@@ -1,8 +1,7 @@
 import { sites } from '@openai/sites-vite-plugin';
-import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
-import { defineConfig } from 'vite';
-import hostingConfig from './.openai/hosting.json';
+import { defineConfig, type UserConfig } from 'vite';
+import hostingConfig from './.openai/hosting.json' with { type: 'json' };
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
@@ -34,7 +33,7 @@ const localBindingConfig = {
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async (): Promise<UserConfig> => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= 'false';
@@ -47,17 +46,16 @@ export default defineConfig(async () => {
   // The managed Windows preview cannot start Miniflare, so the local preview
   // uses the normal Vinext runtime while production builds keep Cloudflare.
   const cloudflarePlugin = isLocalPreview
-    ? null
-    : (await import('@cloudflare/vite-plugin')).cloudflare({
+    ? []
+    : [(await import('@cloudflare/vite-plugin')).cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
-      });
+      })];
 
   return {
-    css: { postcss: { plugins: [tailwindcss()] } },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
-    plugins: [vinext(), sites(), cloudflarePlugin].filter(Boolean),
+    plugins: [vinext(), sites(), ...cloudflarePlugin],
   };
 });

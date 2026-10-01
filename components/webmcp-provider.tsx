@@ -42,7 +42,7 @@ export function WebMCPProvider(props: Props) {
       latest.current.onStatus('Manual mode: this browser does not expose document.modelContext. All dashboard controls remain available.');
       return;
     }
-    const lifecycle = new AbortController();
+    let lifecycle = new AbortController();
     const tools: WebMCPTool[] = [
       {
         name: 'get_evaluation_context', title: 'Get evaluation context',
@@ -53,7 +53,7 @@ export function WebMCPProvider(props: Props) {
       {
         name: 'choose_evaluation_profile', title: 'Choose evaluation profile',
         description: 'Change the visible draft contract. Preserve imported JSON and the previous report; that report is marked stale until evaluated again.',
-        inputSchema: profileSchema, annotations: { readOnlyHint: false, untrustedContentHint: false },
+        inputSchema: profileSchema, annotations: { readOnlyHint: false, untrustedContentHint: true },
         execute: input => {
           const profile = profileInput(input);
           flushSync(() => latest.current.onChooseProfile(profile));
@@ -91,31 +91,45 @@ export function WebMCPProvider(props: Props) {
       },
     ];
     const register = async () => {
+      const registration = lifecycle;
       try {
         for (const tool of tools) {
-          if (lifecycle.signal.aborted) return;
+          if (registration.signal.aborted) return;
           await context.registerTool({ ...tool, execute: async input => {
+            if (registration.signal.aborted) throw new Error('This evaluation is no longer active.');
             const timestamp = new Date().toISOString();
             const activity = { id: `${timestamp}-${crypto.randomUUID()}`, tool: tool.name, title: tool.title || tool.name, mode: tool.annotations?.readOnlyHint === true ? 'read' as const : 'write' as const, timestamp };
             try {
               const result = await tool.execute(input);
-              latest.current.onActivity({ ...activity, status: 'completed' });
+              if (!registration.signal.aborted) latest.current.onActivity({ ...activity, status: 'completed' });
               return result;
             } catch (error) {
-              latest.current.onActivity({ ...activity, status: 'failed' });
+              if (!registration.signal.aborted) latest.current.onActivity({ ...activity, status: 'failed' });
               throw error;
             }
-          } }, { signal: lifecycle.signal });
+          } }, { signal: registration.signal });
         }
-        if (!lifecycle.signal.aborted) latest.current.onStatus('WebMCP ready: five tools connected to the visible evaluation.');
+        if (!registration.signal.aborted) latest.current.onStatus('WebMCP ready: five tools connected to the visible evaluation.');
       } catch {
-        if (lifecycle.signal.aborted) return;
-        lifecycle.abort();
+        if (registration.signal.aborted) return;
+        registration.abort();
         latest.current.onStatus('WebMCP registration failed. Use the dashboard controls or reload to retry.');
       }
     };
+    const suspend = () => lifecycle.abort();
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      lifecycle = new AbortController();
+      void register();
+    };
+    window.addEventListener('pagehide', suspend);
+    window.addEventListener('pageshow', restore);
     void register();
-    return () => lifecycle.abort();
+    return () => {
+      window.removeEventListener('pagehide', suspend);
+      window.removeEventListener('pageshow', restore);
+      lifecycle.abort();
+    };
   }, []);
   return null;
 }

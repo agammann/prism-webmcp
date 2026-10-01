@@ -82,13 +82,17 @@ In a browser implementing the [WebMCP document API](https://webmachinelearning.g
 | `evaluate_current_snapshot` | `{}` | Evaluates entered JSON in Runner snapshot mode using the visible contract |
 | `get_latest_evaluation` | `{}` | Reads report, provenance, exact contract, findings, and stale flag |
 
-Profiles are `commerce`, `operations`, `editor`, and `custom`. Extra input properties and unknown profiles are rejected. Tools stay registered across state changes and use the same actions as the UI. Registration failure is shown on the page; manual controls remain available. Agent activity records the last five tool names, modes, timestamps, and call status, without arguments or results.
+Profiles are `commerce`, `operations`, `editor`, and `custom`. Extra input properties and unknown profiles are rejected. Tools stay registered across state changes and use the same actions as the UI. They withdraw on `pagehide` and reconnect after a cached `pageshow`. Registration failure is shown on the page; manual controls remain available. Agent activity records the last five tool names, modes, timestamps, and call status, without arguments or results.
+
+WebMCP remains experimental. Chrome 154 requires the WebMCP feature flag, or `--enable-features=WebMCP` for automated runs. See [Chrome's WebMCP guide](https://developer.chrome.com/docs/ai/webmcp). Ordinary dashboard controls work when the API is unavailable.
 
 ## Run locally
 
 Requires Node.js 24 or newer and pnpm 11.19.0.
 
 ```sh
+git clone https://github.com/agammann/prism-webmcp.git
+cd prism-webmcp
 pnpm install --frozen-lockfile
 pnpm dev
 ```
@@ -99,13 +103,21 @@ Open the printed localhost URL. There is no provider credential or database to c
 pnpm test
 pnpm lint
 pnpm typecheck
+pnpm audit --audit-level low
+pnpm verify:companion
 pnpm exec playwright install chromium
-pnpm test:e2e
 pnpm build
+pnpm test:e2e
+pnpm exec playwright install chrome
+pnpm test:webmcp
 pnpm start
 ```
 
-`pnpm start` serves the built Worker locally through Wrangler. CI installs Chromium with its Linux dependencies and runs the same checks. Unit tests exercise parsing, scoring, companion evidence, and security headers. Browser tests exercise import, stale reports, exports, custom agent actions, responsive layout, and the actual companion popup/injected code with stubbed Chrome transport and WebMCP. These stubs do not establish browser compatibility; separately test your chosen browser's native APIs. Routing fixtures are static contract checks, not model evaluation results.
+`pnpm start` serves the built Worker locally through Wrangler. Run the browser suites one at a time; each starts its own local Worker. `test:e2e` checks imports, stale reports, exports, custom agent actions, responsive layout, and popup regressions with stubbed transport. `test:webmcp` checks the five tools through native discovery and execution, input refusal, visible state, and back-forward cache restoration. Routing fixtures are static contract checks, not model evaluation results.
+
+The loaded-extension suite uses real `activeTab`/`scripting` permissions and native WebMCP, with selected calls against Prism and a local fixture. See [companion development](extension/README.md#development) for its browser setup. CI runs all three suites against the built Worker and retains native JSON results. Most popup interactions use the same extension document in a background tab after the toolbar action grants permission. A separate check drives the actual toolbar popup through Chrome's protocol and confirms a write with read-back. Open in Prism imports the fictional snapshot into a temporary tab on the public dashboard, so that check also requires network access. No extension transport or WebMCP API is replaced in that suite.
+
+Native dashboard execution is verified on Chrome 154, Edge 154, and Chrome for Testing 155.0.8059.12. Loaded companion execution is verified on Chrome for Testing 154.0.8037.92 and 155.0.8059.12. The adapter selects JSON-string input for Chrome 154 and object input for Chrome 155 before the first call; it never retries a mutation to detect the API version. Recheck experimental browser APIs when adopting newer builds.
 
 To rebuild the companion download after changes: `pnpm package:companion`. `pnpm verify:companion` confirms that the ZIP matches the extension sources.
 

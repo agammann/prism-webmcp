@@ -81,7 +81,7 @@ export function buildSnapshot({ page, tools, executions, contract }) {
     capturedAt: new Date().toISOString(),
     collector: {
       name: 'Prism WebMCP Companion',
-      version: '0.2.0',
+      version: '0.2.1',
       mode: 'browser-mediated',
     },
     profile,

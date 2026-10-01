@@ -134,7 +134,8 @@ async function inspectPage() {
   nodes.toolCount.textContent = '—';
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https?:/u.test(tab.url || '')) throw new Error('Open an http(s) page, then click the extension again.');
+    if (!tab?.id || !tab.url) throw new Error('Click the companion icon on an HTTP(S) page to grant access.');
+    if (!/^https?:/u.test(tab.url)) throw new Error('Open an HTTP(S) page, then click the extension again.');
 
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id, frameIds: [0] },
@@ -214,75 +215,86 @@ async function executeSelected(readOnly) {
       world: 'MAIN',
       args: [tool.name, input, readOnly ? '' : nodes.readbackTool.value, readbackInput, nodes.expectedText.value, readOnly, state.page.url, state.documentKey.split(':').at(-1)],
       func: async (toolName, toolInput, readbackName, verificationInput, expectedText, requireReadOnly, expectedUrl, expectedTimeOrigin) => {
-        if (location.href !== expectedUrl || String(performance.timeOrigin) !== expectedTimeOrigin) throw new Error('The page changed. Refresh the tool list and review the call again.');
-        const context = document.modelContext;
-        if (!context || typeof context.getTools !== 'function' || typeof context.executeTool !== 'function') {
-          throw new Error('This browser does not expose the WebMCP discovery and execution APIs on the page.');
-        }
-
-        const stableVisibleState = () => {
-          const controls = [...document.querySelectorAll('input:not([type=password]):not([type=hidden]), textarea, select')].map((node) => {
-            if (node instanceof HTMLSelectElement) return `${node.name}:${node.selectedIndex}:${node.value}`;
-            if (node instanceof HTMLInputElement && (node.type === 'checkbox' || node.type === 'radio')) return `${node.name}:${node.checked}`;
-            return `${node.name}:${node.value}`;
-          });
-          return JSON.stringify({
-            text: (document.body?.innerText || '').replace(/\s+/gu, ' ').trim(),
-            controls,
-            url: location.href,
-            title: document.title,
-          });
-        };
-        const digest = async (value) => {
-          if (globalThis.crypto?.subtle) {
-            const bytes = new TextEncoder().encode(value);
-            const hash = await crypto.subtle.digest('SHA-256', bytes);
-            return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        try {
+          if (location.href !== expectedUrl || String(performance.timeOrigin) !== expectedTimeOrigin) throw new Error('The page changed. Refresh the tool list and review the call again.');
+          const context = document.modelContext;
+          if (!context || typeof context.getTools !== 'function' || typeof context.executeTool !== 'function') {
+            throw new Error('This browser does not expose the WebMCP discovery and execution APIs on the page.');
           }
-          let hash = 2166136261;
-          for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
-          return `fnv1a-${(hash >>> 0).toString(16)}`;
-        };
-        const waitForPaint = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80))));
-        const tools = await context.getTools();
-        const selected = tools.find((candidate) => candidate.name === toolName);
-        if (!selected) throw new Error(`Tool ${toolName} is no longer exposed in this page state.`);
-        if (requireReadOnly && selected.annotations?.readOnlyHint !== true) throw new Error('The tool is no longer marked read-only. Refresh and review the mutation.');
-        const checkResult = result => {
-          let parsed = result;
-          if (typeof result === 'string') { try { parsed = JSON.parse(result); } catch { /* Plain-text tool output. */ } }
-          if (parsed?.isError === true) throw new Error('The tool returned an error result.');
-          return result;
-        };
-        const beforeHash = await digest(stableVisibleState());
-        const output = checkResult(await context.executeTool(selected, toolInput));
-        await waitForPaint();
-        const afterHash = await digest(stableVisibleState());
-        let readback = null;
-        if (readbackName) {
-          const currentTools = await context.getTools();
-          const readTool = currentTools.find((candidate) => candidate.name === readbackName);
-          if (!readTool) throw new Error(`Read-back tool ${readbackName} is no longer exposed.`);
-          if (readTool.annotations?.readOnlyHint !== true) throw new Error('Read-back tool must still be explicitly read-only.');
-          const readOutput = checkResult(await context.executeTool(readTool, verificationInput));
-          const readText = typeof readOutput === 'string' ? readOutput : JSON.stringify(readOutput);
-          readback = {
-            tool: readbackName,
-            output: readText,
-            expectedText,
-            verified: Boolean(expectedText) && readText.toLocaleLowerCase().includes(expectedText.toLocaleLowerCase()),
+
+          const stableVisibleState = () => {
+            const controls = [...document.querySelectorAll('input:not([type=password]):not([type=hidden]), textarea, select')].map((node) => {
+              if (node instanceof HTMLSelectElement) return `${node.name}:${node.selectedIndex}:${node.value}`;
+              if (node instanceof HTMLInputElement && (node.type === 'checkbox' || node.type === 'radio')) return `${node.name}:${node.checked}`;
+              return `${node.name}:${node.value}`;
+            });
+            return JSON.stringify({
+              text: (document.body?.innerText || '').replace(/\s+/gu, ' ').trim(),
+              controls,
+              url: location.href,
+              title: document.title,
+            });
           };
+          const digest = async (value) => {
+            if (globalThis.crypto?.subtle) {
+              const bytes = new TextEncoder().encode(value);
+              const hash = await crypto.subtle.digest('SHA-256', bytes);
+              return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+            }
+            let hash = 2166136261;
+            for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+            return `fnv1a-${(hash >>> 0).toString(16)}`;
+          };
+          const waitForPaint = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80))));
+          const tools = await context.getTools();
+          const selected = tools.find((candidate) => candidate.name === toolName);
+          if (!selected) throw new Error(`Tool ${toolName} is no longer exposed in this page state.`);
+          if (requireReadOnly && selected.annotations?.readOnlyHint !== true) throw new Error('The tool is no longer marked read-only. Refresh and review the mutation.');
+          const checkResult = result => {
+            let parsed = result;
+            if (typeof result === 'string') { try { parsed = JSON.parse(result); } catch { /* Plain-text tool output. */ } }
+            if (parsed?.isError === true) throw new Error('The tool returned an error result.');
+            return result;
+          };
+          const beforeHash = await digest(stableVisibleState());
+          // Chrome 154 exposes JSON-string input; newer API revisions take an object.
+          // Choose before calling so a mutation is never retried to detect the API shape.
+          const chromeMajor = Number(navigator.userAgent.match(/(?:Chrome|Chromium)\/(\d+)/u)?.[1]);
+          const executionInput = value => chromeMajor > 0 && chromeMajor < 155 ? JSON.stringify(value) : value;
+          const output = checkResult(await context.executeTool(selected, executionInput(toolInput)));
+          await waitForPaint();
+          const afterHash = await digest(stableVisibleState());
+          let readback = null;
+          if (readbackName) {
+            const currentTools = await context.getTools();
+            const readTool = currentTools.find((candidate) => candidate.name === readbackName);
+            if (!readTool) throw new Error(`Read-back tool ${readbackName} is no longer exposed.`);
+            if (readTool.annotations?.readOnlyHint !== true) throw new Error('Read-back tool must still be explicitly read-only.');
+            const readOutput = checkResult(await context.executeTool(readTool, executionInput(verificationInput)));
+            const readText = typeof readOutput === 'string' ? readOutput : JSON.stringify(readOutput);
+            readback = {
+              tool: readbackName,
+              output: readText,
+              expectedText,
+              verified: Boolean(expectedText) && readText.toLocaleLowerCase().includes(expectedText.toLocaleLowerCase()),
+            };
+          }
+          return {
+            output: typeof output === 'string' ? output : JSON.stringify(output),
+            beforeHash,
+            afterHash,
+            visibleStateChanged: beforeHash !== afterHash,
+            readback,
+            readVerified: requireReadOnly && Boolean(expectedText.trim()) && (typeof output === 'string' ? output : JSON.stringify(output)).toLocaleLowerCase().includes(expectedText.trim().toLocaleLowerCase()),
+          };
+        } catch (error) {
+          // executeScript does not reliably propagate a MAIN-world thrown error.
+          return { error: error instanceof Error ? error.message : String(error) };
         }
-        return {
-          output: typeof output === 'string' ? output : JSON.stringify(output),
-          beforeHash,
-          afterHash,
-          visibleStateChanged: beforeHash !== afterHash,
-          readback,
-          readVerified: requireReadOnly && Boolean(expectedText.trim()) && (typeof output === 'string' ? output : JSON.stringify(output)).toLocaleLowerCase().includes(expectedText.trim().toLocaleLowerCase()),
-        };
       },
     });
+    if (result?.error) throw new Error(result.error);
+    if (!result || typeof result.output !== 'string') throw new Error('The browser did not return a tool result. Refresh the tool list and try again.');
     const output = result.output || '';
     const execution = {
       tool: tool.name,
