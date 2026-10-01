@@ -434,7 +434,8 @@ export default function Home() {
                 <AlertTitle>Live browser companion available</AlertTitle>
                 <AlertDescription className="text-emerald-50/55">
                   Discover the current tool set, run a browser-mediated check, and import the evidence here.{' '}
-                  <a className="font-medium text-emerald-200 underline underline-offset-4 hover:text-white" download href="/prism-webmcp-companion.zip">Download the MIT-licensed extension</a>.
+                  <a className="font-medium text-emerald-200 underline underline-offset-4 hover:text-white" download href="/prism-webmcp-companion.zip">Download the MIT-licensed extension</a> ·{' '}
+                  <a className="font-medium text-emerald-200 underline underline-offset-4 hover:text-white" href="https://github.com/agammann/prism-webmcp/tree/main/extension" target="_blank" rel="noopener noreferrer">Install and browser setup</a>.
                 </AlertDescription>
               </Alert>
             </div>

@@ -17,15 +17,39 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level low
       - run: pnpm test
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm verify:companion
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - run: pnpm exec playwright install --with-deps chrome
       - run: pnpm build
+      - run: pnpm test:e2e
+      - run: pnpm test:webmcp --reporter=line,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/native-webmcp.json
+      - name: Install Chrome for Testing for the loaded companion
+        run: |
+          for version in 154.0.8037.92 155.0.8059.12; do
+            curl --fail --location "https://storage.googleapis.com/chrome-for-testing-public/$version/linux64/chrome-linux64.zip" --output "/tmp/chrome-$version.zip"
+            mkdir -p ".cache/$version"
+            unzip -q "/tmp/chrome-$version.zip" -d ".cache/$version"
+          done
+      - run: pnpm test:webmcp --reporter=line,json
+        env:
+          PRISM_WEBMCP_BROWSER: ${{ github.workspace }}/.cache/155.0.8059.12/chrome-linux64/chrome
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/native-webmcp-155.json
+      - run: pnpm test:companion:native --reporter=line,json
+        env:
+          PRISM_COMPANION_BROWSER: ${{ github.workspace }}/.cache/154.0.8037.92/chrome-linux64/chrome
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/native-companion-154.json
+      - run: pnpm test:companion:native --reporter=line,json
+        env:
+          PRISM_COMPANION_BROWSER: ${{ github.workspace }}/.cache/155.0.8059.12/chrome-linux64/chrome
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/native-companion-155.json
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: browser-test-results
           path: test-results/

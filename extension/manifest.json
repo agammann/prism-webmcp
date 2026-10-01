@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prism WebMCP Companion",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Discover, exercise, and export live WebMCP tools against a purpose-specific evaluation contract.",
   "permissions": [
     "activeTab",
