@@ -33,6 +33,7 @@ jobs:
         run: |
           for version in 154.0.8037.92 155.0.8059.12; do
             curl --fail --location "https://storage.googleapis.com/chrome-for-testing-public/$version/linux64/chrome-linux64.zip" --output "/tmp/chrome-$version.zip"
+            mkdir -p ".cache/$version"
             unzip -q "/tmp/chrome-$version.zip" -d ".cache/$version"
           done
       - run: pnpm test:webmcp --reporter=line,json
