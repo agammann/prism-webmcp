@@ -162,7 +162,8 @@ test('a browser without WebMCP shows an unavailable companion while the manual d
   } finally { await session.close(); }
 });
 test('the actual toolbar popup discovers tools and completes a confirmed native write', async ({ baseURL }, testInfo) => {
-  const session = await open(baseURL!); const { cdp, target, id } = session;
+  // Invoke the action once: a second invocation can toggle an existing toolbar popup closed.
+  const session = await open(baseURL!, false, false); const { cdp, target, id } = session;
   try {
     await session.popup.close(); await target.bringToFront();
     const before = new Set((await cdp.send('Target.getTargets')).targetInfos.map(info => info.targetId));
