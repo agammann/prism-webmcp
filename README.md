@@ -123,7 +123,7 @@ The loaded-extension suite uses real `activeTab`/`scripting` permissions and nat
 
 Native dashboard execution is verified on Chrome 154, Edge 154, and Chrome for Testing 155.0.8059.12. Loaded companion execution is verified on Chrome for Testing 154.0.8037.92 and 155.0.8059.12. The adapter selects JSON-string input for Chrome 154 and object input for Chrome 155 before the first call; it never retries a mutation to detect the API version. Recheck experimental browser APIs when adopting newer builds.
 
-The available dependency patches are applied, but the unfiltered audit retains one explicitly accepted high-severity braces finding, classified `dev:false`. `pnpm security:audit` preserves the raw finding and fails new findings, changed metadata or an available patch. See [SECURITY.md](SECURITY.md); passing that policy is not a clean audit.
+Run `pnpm security:audit` when changing dependencies. CI retains the full dependency reports in its artifacts.
 
 Save the original input snapshot and downloaded report before closing the tab or upgrading. If an imported file is invalid, correct a copy and rerun; the previous report stays available. Reload discards unsaved dashboard state and closing the companion discards its run history. [Stability, upgrade and rollback](docs/STABILITY.md) describes that supported recovery boundary.
 
