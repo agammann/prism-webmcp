@@ -2,7 +2,7 @@
 
 **Inspect the evidence behind a WebMCP tool contract.**
 
-[Use Prism](https://prism.alx21.chatgpt.site/) · [Download the companion](https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip)
+[Use Prism](https://prism.alx21.chatgpt.site/) · [Download v1](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0)
 
 Prism is a free, browser-based tool for comparing the capabilities you expect with a snapshot of a page's WebMCP tools. It shows missing tool names, incomplete schemas and annotations, missing outcome evidence, and an unverified human approval boundary. Use it to decide what to test or repair next.
 
@@ -88,10 +88,14 @@ WebMCP remains experimental. Chrome 154 requires the WebMCP feature flag, or `--
 
 ## Run locally
 
-Requires Node.js 24 or newer and pnpm 11.19.0.
+Requires Node.js 24 or newer and pnpm 11.19.0. No database, account, hosted-model credential or environment file is required.
+
+For the pinned v1 delivery, download `prism_1.0.0_source.zip` and `SHA256SUMS` from the [v1.0.0 release](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0). Verify the ZIP hash with `sha256sum` or PowerShell `Get-FileHash`, compare it with the matching line in SHA256SUMS, and extract into a new folder. From its `prism-1.0.0` directory, run `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm start`. Open the printed localhost URL. Keep that folder for rollback.
+
+For source development:
 
 ```sh
-git clone https://github.com/agammann/prism-webmcp.git
+git clone --branch v1.0.0 --depth 1 https://github.com/agammann/prism-webmcp.git
 cd prism-webmcp
 pnpm install --frozen-lockfile
 pnpm dev
@@ -103,7 +107,7 @@ Open the printed localhost URL. There is no provider credential or database to c
 pnpm test
 pnpm lint
 pnpm typecheck
-pnpm audit --audit-level low
+pnpm security:audit
 pnpm verify:companion
 pnpm exec playwright install chromium
 pnpm build
@@ -118,6 +122,12 @@ pnpm start
 The loaded-extension suite uses real `activeTab`/`scripting` permissions and native WebMCP, with selected calls against Prism and a local fixture. See [companion development](extension/README.md#development) for its browser setup. CI runs all three suites against the built Worker and retains native JSON results. Most popup interactions use the same extension document in a background tab after the toolbar action grants permission. A separate check drives the actual toolbar popup through Chrome's protocol and confirms a write with read-back. Open in Prism imports the fictional snapshot into a temporary tab on the public dashboard, so that check also requires network access. No extension transport or WebMCP API is replaced in that suite.
 
 Native dashboard execution is verified on Chrome 154, Edge 154, and Chrome for Testing 155.0.8059.12. Loaded companion execution is verified on Chrome for Testing 154.0.8037.92 and 155.0.8059.12. The adapter selects JSON-string input for Chrome 154 and object input for Chrome 155 before the first call; it never retries a mutation to detect the API version. Recheck experimental browser APIs when adopting newer builds.
+
+The available dependency patches are applied, but the unfiltered audit retains one explicitly accepted high-severity braces finding, classified `dev:false`. `pnpm security:audit` preserves the raw finding and fails new findings, changed metadata or an available patch. See [SECURITY.md](SECURITY.md); passing that policy is not a clean audit.
+
+Save the original input snapshot and downloaded report before closing the tab or upgrading. If an imported file is invalid, correct a copy and rerun; the previous report stays available. Reload discards unsaved dashboard state and closing the companion discards its run history. [Stability, upgrade and rollback](docs/STABILITY.md) describes that supported recovery boundary.
+
+For a reproducible problem, open a repository issue with the release, browser version, exact steps and a sanitized fixture. Do not include credentials or private descriptors.
 
 To rebuild the companion download after changes: `pnpm package:companion`. `pnpm verify:companion` confirms that the ZIP matches the extension sources.
 

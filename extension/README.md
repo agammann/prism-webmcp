@@ -4,7 +4,7 @@ Collect a snapshot of WebMCP tools on a page you are developing or authorized to
 
 ## Install
 
-1. Download and extract [the companion ZIP](https://prism.alx21.chatgpt.site/prism-webmcp-companion.zip), or use this repository's `extension` directory.
+1. Download and extract [`prism_1.0.0_companion.zip` and SHA256SUMS](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0), or use the exact source release's `extension` directory. Verify its SHA256 against SHA256SUMS before extracting. The folder must stay on disk while the unpacked extension is installed.
 2. Use a Chromium browser that exposes both `document.modelContext.getTools()` and `document.modelContext.executeTool()` on the target page. In Chrome 154, enable WebMCP in `chrome://flags/#enable-webmcp`, then restart the browser. These experimental APIs are not available in every browser. See [Chrome's WebMCP guide](https://developer.chrome.com/docs/ai/webmcp) and the [WebMCP specification](https://webmachinelearning.github.io/webmcp/).
 3. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the folder containing `manifest.json`.
 4. Open your HTTP(S) page and click the companion icon. An unsupported browser or page gets an explicit unavailable message.
@@ -27,6 +27,10 @@ DOM digests summarize page text and form state before and after a call. Password
 The extension catches thrown errors and results with `isError: true`. Application-specific error formats require manual inspection. A page can mislabel its own tools; hints are declarations, not enforcement by the companion.
 
 Exports retain descriptors, schemas, contract text, URL origin/path, timing, hashes, and outcomes. They omit raw inputs, outputs, errors, expected text, and URL query/fragment. Descriptors and paths may themselves contain sensitive information. Review JSON before sharing. See [PRIVACY.md](PRIVACY.md).
+
+## Upgrade and recovery
+
+Download and verify the new pinned release into a new folder. Preserve your JSON snapshots and reports first; popup run history is not persisted. In chrome://extensions, reload the unpacked extension from the new folder and check the shown version. To roll back, load the retained old folder. An unsupported page shows an unavailable message; use dashboard JSON import instead. No browser or target-page data is migrated.
 
 ## Development
 
