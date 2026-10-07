@@ -10,4 +10,4 @@ Native WebMCP is experimental. The release CI checks the dashboard and loaded co
 
 Keep old source and extension folders when upgrading. Save snapshots and reports, stop the local preview, extract the new release into a new folder, verify checksums, install with the frozen lockfile and rebuild. Reload the unpacked extension from the new folder. To roll back, stop the new preview and run the retained old folder; restore the old unpacked extension folder. The dashboard has no persistent data migration.
 
-The source is MIT licensed; dependencies keep their own licenses. The specific unpatched braces advisory and strict release policy are documented in SECURITY.md. Hosted delivery requires a separate check against the exact published source.
+The source is MIT licensed; dependencies keep their own licenses. Hosted delivery requires a separate check against the exact published source.
