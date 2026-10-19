@@ -4,7 +4,7 @@ Collect a snapshot of WebMCP tools on a page you are developing or authorized to
 
 ## Install
 
-1. Download and extract [`prism_1.0.0_companion.zip` and SHA256SUMS](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0), or use the exact source release's `extension` directory. Verify its SHA256 against SHA256SUMS before extracting. The folder must stay on disk while the unpacked extension is installed.
+1. Download and extract [`prism_1.0.1_companion.zip` and SHA256SUMS](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.1), or use the exact source release's `extension` directory. Verify its SHA256 against SHA256SUMS before extracting. The folder must stay on disk while the unpacked extension is installed.
 2. Use a Chromium browser that exposes both `document.modelContext.getTools()` and `document.modelContext.executeTool()` on the target page. In Chrome 154, enable WebMCP in `chrome://flags/#enable-webmcp`, then restart the browser. These experimental APIs are not available in every browser. See [Chrome's WebMCP guide](https://developer.chrome.com/docs/ai/webmcp) and the [WebMCP specification](https://webmachinelearning.github.io/webmcp/).
 3. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the folder containing `manifest.json`.
 4. Open your HTTP(S) page and click the companion icon. An unsupported browser or page gets an explicit unavailable message.

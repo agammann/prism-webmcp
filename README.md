@@ -2,7 +2,7 @@
 
 **Inspect the evidence behind a WebMCP tool contract.**
 
-[Use Prism](https://prism.alx21.chatgpt.site/) · [Download v1](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0)
+[Use Prism](https://prism.alx21.chatgpt.site/) · [Download v1](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.1)
 
 Prism is a free, browser-based tool for comparing the capabilities you expect with a snapshot of a page's WebMCP tools. It shows missing tool names, incomplete schemas and annotations, missing outcome evidence, and an unverified human approval boundary. Use it to decide what to test or repair next.
 
@@ -90,12 +90,12 @@ WebMCP remains experimental. Chrome 154 requires the WebMCP feature flag, or `--
 
 Requires Node.js 24 or newer and pnpm 11.19.0. No database, account, hosted-model credential or environment file is required.
 
-For the pinned v1 delivery, download `prism_1.0.0_source.zip` and `SHA256SUMS` from the [v1.0.0 release](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.0). Verify the ZIP hash with `sha256sum` or PowerShell `Get-FileHash`, compare it with the matching line in SHA256SUMS, and extract into a new folder. From its `prism-1.0.0` directory, run `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm start`. Open the printed localhost URL. Keep that folder for rollback.
+For the pinned v1 delivery, download `prism_1.0.1_source.zip` and `SHA256SUMS` from the [v1.0.1 release](https://github.com/agammann/prism-webmcp/releases/tag/v1.0.1). Verify the ZIP hash with `sha256sum` or PowerShell `Get-FileHash`, compare it with the matching line in SHA256SUMS, and extract into a new folder. From its `prism-1.0.1` directory, run `pnpm install --frozen-lockfile`, `pnpm build`, then `pnpm start`. Open the printed localhost URL. Keep that folder for rollback.
 
 For source development:
 
 ```sh
-git clone --branch v1.0.0 --depth 1 https://github.com/agammann/prism-webmcp.git
+git clone --branch v1.0.1 --depth 1 https://github.com/agammann/prism-webmcp.git
 cd prism-webmcp
 pnpm install --frozen-lockfile
 pnpm dev
