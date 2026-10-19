@@ -52,5 +52,16 @@
     "typescript/no-require-imports": "error",
     "typescript/no-unnecessary-type-constraint": "error",
     "typescript/no-unsafe-function-type": "error"
-  }
+  },
+  "overrides": [
+    {
+      "rules": {
+        "typescript/no-require-imports": "off"
+      },
+      "files": [
+        "vendor/bounded-braces/**/*.js",
+        "scripts/bounded-braces.test.cjs"
+      ]
+    }
+  ]
 }

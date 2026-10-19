@@ -1,6 +1,6 @@
 {
   "name": "prism",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "engines": {
     "node": ">=24"
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "node scripts/sandbox-vinext.mjs dev",
     "build": "node scripts/sandbox-vinext.mjs build",
-    "test": "tsx --test test/*.test.ts extension/test/*.test.js && node scripts/verify-webmcp-evals.mjs && node scripts/verify-security-headers.mjs",
+    "test": "tsx --test test/*.test.ts extension/test/*.test.js && node scripts/verify-webmcp-evals.mjs && node scripts/verify-security-headers.mjs && node --test scripts/bounded-braces.test.cjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
     "format": "oxfmt",
@@ -54,7 +54,8 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.2.2",
-    "wrangler": "4.145.0"
+    "wrangler": "4.145.0",
+    "@agammann/bounded-braces": "file:vendor/bounded-braces"
   },
   "type": "module",
   "packageManager": "pnpm@11.19.0",
