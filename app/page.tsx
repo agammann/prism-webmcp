@@ -1,27 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  Braces,
-  Check,
-  ChevronRight,
-  CircleAlert,
-  Clock3,
-  CircleDot,
-  ClipboardPaste,
-  Code2,
-  FlaskConical,
-  Gauge,
-  Layers3,
-  MonitorDot,
-  Play,
-  RotateCcw,
-  ScanSearch,
-  ShieldCheck,
-  Sparkles,
-  TerminalSquare,
-} from 'lucide-react';
+import ArrowRight from 'lucide-react/icons/arrow-right';
+import Braces from 'lucide-react/icons/braces';
+import Check from 'lucide-react/icons/check';
+import ChevronRight from 'lucide-react/icons/chevron-right';
+import CircleAlert from 'lucide-react/icons/circle-exclamation-point';
+import Clock3 from 'lucide-react/icons/clock-3';
+import CircleDot from 'lucide-react/icons/circle-dot';
+import ClipboardPaste from 'lucide-react/icons/clipboard-paste';
+import Code2 from 'lucide-react/icons/code-xml';
+import FlaskConical from 'lucide-react/icons/flask-conical';
+import Gauge from 'lucide-react/icons/gauge';
+import Layers3 from 'lucide-react/icons/layers';
+import MonitorDot from 'lucide-react/icons/monitor-dot';
+import Play from 'lucide-react/icons/play';
+import RotateCcw from 'lucide-react/icons/rotate-ccw';
+import ScanSearch from 'lucide-react/icons/scan-search';
+import ShieldCheck from 'lucide-react/icons/shield-check';
+import Sparkles from 'lucide-react/icons/sparkles';
+import TerminalSquare from 'lucide-react/icons/square-terminal';
 
 import { WebMCPProvider, type WebMCPActivity } from '@/components/webmcp-provider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
