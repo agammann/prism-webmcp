@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+- Publish current dependency, licensed vendored-style, icon and CI changes in matching source and companion distributions; earlier release assets remain immutable.
+- Update Vite 8.3.6 to 8.3.7 with patched Rolldown for the verified development-server advisory.
+- Export the actual installed companion version from its popup runtime metadata instead of the historical hardcoded collector version. Keep snapshot construction independent of injected page execution and verify both pure output and real loaded-extension exports.
+- Disable root-document ISR and require private mandatory revalidation for HTML/RSC, with repeated production HTTP/asset regression coverage. Preserve response security headers, static asset policies and real native lifecycle requirements.
+- Retain evaluator weights/limits, privacy whitelist, selected-call confirmation, activeTab/scripting permissions and the five dashboard tools.
+
 ## 1.0.1
 
 - Replace the unbounded brace dependency with a maintained compatibility package that preserves ordinary glob behavior and the upstream license.

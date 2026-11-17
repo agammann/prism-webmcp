@@ -358,7 +358,7 @@ function prepareRun() {
 
 function makeSnapshot() {
   if (!state.page.url) throw new Error('Inspect a page before exporting a snapshot.');
-  return buildSnapshot({ page: state.page, tools: state.tools, executions: state.executions, contract: contractFromForm() });
+  return buildSnapshot({ page: state.page, tools: state.tools, executions: state.executions, contract: contractFromForm(), collectorVersion: chrome.runtime.getManifest().version });
 }
 
 async function openInPrism() {

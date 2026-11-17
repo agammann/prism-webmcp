@@ -11,3 +11,19 @@ Native WebMCP is experimental. The release CI checks the dashboard and loaded co
 Keep old source and extension folders when upgrading. Save snapshots and reports, stop the local preview, extract the new release into a new folder, verify checksums, install with the frozen lockfile and rebuild. Reload the unpacked extension from the new folder. To roll back, stop the new preview and run the retained old folder; restore the old unpacked extension folder. The dashboard has no persistent data migration.
 
 The source is MIT licensed; dependencies keep their own licenses. Hosted delivery requires a separate check against the exact published source.
+
+Source and companion 1.0.2 preserve schema version 1 and the selected-call privacy
+and confirmation rules. Collector provenance now identifies the actual installed
+extension version, obtained in its popup context rather than the target page.
+
+The generic root document bypasses framework ISR and uses
+`Cache-Control: private, no-cache, max-age=0, must-revalidate` for HTML and RSC.
+Shared caches cannot retain it; browser HTTP storage may keep the shell but must
+revalidate. Security-wrapper and asset policies remain unchanged. This increases
+Worker document renders while reducing stale-document retention risk.
+
+After publication, verify repeated GET/HEAD document/RSC policy and referenced
+JS/CSS bytes/MIME, missing-asset404 and native lifecycle behavior. Save the current
+snapshot/report before reload because tab state is intentionally not persisted.
+These controls do not purge already-cached HTML or guarantee atomic platform
+rollouts; no prior Prism asset mismatch is claimed.

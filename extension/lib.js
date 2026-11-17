@@ -73,7 +73,8 @@ export function applyExecutionEvidence(tools, executions) {
   });
 }
 
-export function buildSnapshot({ page, tools, executions, contract }) {
+export function buildSnapshot({ page, tools, executions, contract, collectorVersion }) {
+  if (typeof collectorVersion !== 'string' || !collectorVersion.trim()) throw new Error('Collector version is unavailable.');
   const profile = PROFILE_KEYS.includes(contract.profile) ? contract.profile : 'custom';
   return {
     schemaVersion: 1,
@@ -81,7 +82,7 @@ export function buildSnapshot({ page, tools, executions, contract }) {
     capturedAt: new Date().toISOString(),
     collector: {
       name: 'Prism WebMCP Companion',
-      version: '0.2.1',
+      version: collectorVersion,
       mode: 'browser-mediated',
     },
     profile,

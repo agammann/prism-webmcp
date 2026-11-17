@@ -7,7 +7,8 @@ async function openCompanion(page) {
     if (!['popup.html', 'popup.js', 'lib.js', 'popup.css'].includes(file)) return route.abort();
     await route.fulfill({ body: await readFile(new URL(`../extension/${file}`, import.meta.url)), contentType: file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html' });
   });
-  await page.addInitScript(() => {
+  const manifest = JSON.parse(await readFile(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
+  await page.addInitScript((manifestVersion) => {
     window.callCount = 0; window.changedHint = false; window.errorResult = false; window.navigated = false;
     const descriptors = () => [
       { name: 'read_state', description: 'Read state', annotations: { readOnlyHint: !window.changedHint }, inputSchema: { type: 'object' } },
@@ -18,6 +19,7 @@ async function openCompanion(page) {
       executeTool: async (tool) => { window.callCount++; if (window.errorResult) return JSON.stringify({ isError: true }); if (tool.name === 'update_state') document.querySelector('#page-title').textContent = 'Updated state'; return '{"status":"ready"}'; },
     } });
     window.chrome = {
+      runtime: { getManifest: () => ({ version: manifestVersion }) },
       tabs: { query: async () => [{ id: 1, url: location.href }], create: async ({ url }) => { window.exportedUrl = url; } },
       scripting: { executeScript: async ({ func, args }) => {
         const result = await func(...(args || []));
@@ -25,7 +27,7 @@ async function openCompanion(page) {
         return [{ result }];
       } },
     };
-  });
+  }, manifest.version);
   await page.goto('/__companion/popup.html');
   await expect(page.locator('#tool-count')).toHaveText('2');
 }

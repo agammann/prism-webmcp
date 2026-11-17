@@ -9,6 +9,13 @@ The companion grants only activeTab and scripting after its toolbar action. Snap
 
 Run `pnpm security:audit` when changing dependencies. CI retains the full dependency reports in its artifacts.
 
+Source 1.0.2 uses Vite 8.3.7 with patched Rolldown for
+[GHSA-p4f5-76q4-ffq7](https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7).
+The former Vite 8.3.6/Rolldown 1.2.16 falls within the maintainer's affected range
+even if registry audit findings are zero. The advisory concerns development
+servers explicitly exposed to the network, not the deployed Worker. Retain the
+default localhost development binding unless network access is intentional.
+
 ## Bounded brace tooling
 
 Transitive `braces` imports resolve to the repository-maintained

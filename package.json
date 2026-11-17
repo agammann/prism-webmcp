@@ -1,6 +1,6 @@
 {
   "name": "prism",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "engines": {
     "node": ">=24"
@@ -53,7 +53,7 @@
     "tailwindcss": "4.2.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.6",
+    "vite": "8.3.7",
     "wrangler": "4.145.0"
   },
   "type": "module",

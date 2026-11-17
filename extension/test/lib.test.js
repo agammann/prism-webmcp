@@ -24,10 +24,11 @@ test('successful call alone does not verify read outcome or approval', () => {
   assert.equal(result[0].evidence.humanConfirmationPreserved, undefined);
 });
 test('exports a whitelist without input, output, error, query or fragment data', () => {
-  const snapshot = buildSnapshot({ page: { supported: true, url: 'https://example.test/app?token=secret#private' }, tools,
+  const snapshot = buildSnapshot({ collectorVersion: '9.8.7', page: { supported: true, url: 'https://example.test/app?token=secret#private' }, tools,
     executions: [{ tool: 'update_record', readOnly: false, status: 'failed', input: { secret: 1 }, error: 'secret', outputPreview: 'secret', readBackExpectedText: 'secret' }],
     contract: { profile: 'custom', intent: 'Update', expectedTools: 'update_record', approvalRule: 'Review' } });
   assert.equal(snapshot.target, 'https://example.test/app');
+  assert.equal(snapshot.collector.version, '9.8.7');
   assert.equal(JSON.stringify(snapshot).includes('secret'), false);
   assert.deepEqual(snapshot.contract.expectedTools, ['update_record']);
 });

@@ -71,6 +71,7 @@ test('loaded companion discovers native Prism, confirms one write, reads it back
     await expect(popup.locator('#run-result')).toContainText('Read-back matched');
     await expect(target.locator('#profile')).toHaveValue('operations');
     const snapshot = await download(popup);
+    expect(snapshot.collector.version).toBe(await popup.evaluate('chrome.runtime.getManifest().version'));
     expect(snapshot.executions.filter((row: { tool: string }) => row.tool === 'choose_evaluation_profile')).toHaveLength(1);
     const evidence = snapshot.tools.find((tool: { name: string }) => tool.name === 'choose_evaluation_profile').evidence;
     expect(evidence).toEqual({ visibleStateChanged: true, readBackVerified: true });
